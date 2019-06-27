@@ -131,7 +131,7 @@ export class PluginTarget {
     // reporting
     let onStartBuild = () => {}
     let onEndBuild = onbuild ? onbuild : (()=>{})
-    if (c.verbose) {
+    if (c.verbose || c.watch) {
       let info = (
         "plugin " + repr(this.name) +
         " at " + rpath(this.srcdir) +
