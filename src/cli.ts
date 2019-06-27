@@ -1,8 +1,9 @@
-import { relative as relpath } from 'path'
+import { basename } from 'path'
 
 
 // prog is the name of the program
-export const prog :string = relpath(".", process.argv[1])
+// export const prog :string = process.argv[1]
+export const prog = process.env["_"] || basename(process.argv[1])
 
 
 // die prints message to stderr and exits with status 1
