@@ -136,7 +136,9 @@ export class Lib extends LibBase {
       } catch (_) {}
 
       // if we get here, we need to compile the library
-      print(`build ${relpath(".", this.jsfile)}`)
+      if (c.verbose2) {
+        print(`build lib ${this.jsfile} -> ${cachefile}`)
+      }
       let r = await this.compile(c, this.jsfile, cachefile)
 
       // check for error
