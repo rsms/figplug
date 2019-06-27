@@ -16,6 +16,8 @@
 
     ".gitignore",
     "build.js",
+    "test.sh",
+    "tsconfig.json",
     "src/*.ts",
     "src/*.js",
     "deps/*.sh",

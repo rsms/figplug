@@ -10,6 +10,12 @@
   --fontSize: 1.7vw;
 }}
 
+pre, tt, code, code-snippet {
+  font-family: IBM Plex Mono, monospace;
+  -webkit-font-feature-settings: "ss02" 1,"zero" 1;
+  font-feature-settings: "ss02" 1,"zero" 1;
+}
+
 code-snippet {
   display: block;
   /*background: #eee;
@@ -17,9 +23,6 @@ code-snippet {
   color: var(--accent);
   margin: calc(var(--lineHeight) / 2) 0 !important;
   border-radius: 2px;
-  font-family: IBM Plex Mono, monospace;
-  -webkit-font-feature-settings: "ss02" 1,"zero" 1;
-  font-feature-settings: "ss02" 1,"zero" 1;
   overflow-wrap: break-word;
   word-wrap: break-word;
   -webkit-nbsp-mode: space;
