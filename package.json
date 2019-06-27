@@ -6,6 +6,18 @@
   },
   "author": "rsms",
   "license": "MIT",
+  "files": [
+    "LICENSE",
+    "README.md",
+    "bin/figplug",
+    "bin/figplug.map",
+    "lib",
+    "examples",
+
+    "build.js",
+    ".gitignore",
+    "deps"
+  ],
   "scripts": {
     "build-o": "node build.js -O",
     "build-g": "node build.js -w"
