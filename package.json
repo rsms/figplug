@@ -14,9 +14,12 @@
     "lib",
     "examples",
 
-    "build.js",
     ".gitignore",
-    "deps"
+    "build.js",
+    "src/*.ts",
+    "src/*.js",
+    "deps/*.sh",
+    "deps/*.js"
   ],
   "scripts": {
     "build-o": "node build.js -O",
