@@ -1,0 +1,21 @@
+:root {
+  --fontSize: calc(100vw / 80);
+  --columnGap: calc(var(--lineHeight) * 3);
+}
+@media only screen and (max-width: 600px) { :root {
+  --fontSize: calc(100vw / 30);
+}}
+@media only screen and (max-device-width: 812px) and (orientation: landscape) { :root {
+  --fontSize: 1.7vw;
+}}
+
+code-snippet {
+  display: block;
+  background: #eee;
+  padding: calc(var(--lineHeight) / 2) calc(var(--lineHeight) / 4);
+  margin: calc(var(--lineHeight) / 2) 0 !important;
+  border-radius: 2px;
+  font-family: IBM Plex Mono, monospace;
+  -webkit-font-feature-settings: "ss02" 1,"zero" 1;
+  font-feature-settings: "ss02" 1,"zero" 1;
+}

@@ -1,0 +1,12 @@
+body {
+  background: lightpink;
+}
+
+p {
+  /* Supports cssnext features like nested rules */
+  & input {
+    border: 1px solid black;
+    border-radius: 3px;
+    background: white;
+  }
+}

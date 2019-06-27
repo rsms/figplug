@@ -1,0 +1,17 @@
+{
+  "name": "ui-react",
+  "version": "1.0.0",
+  "description": "Example of a plugin which UI is made using React",
+  "main": "build/plugin.js",
+  "scripts": {
+    "build": "figplug -O"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@types/react": "^16.8.19",
+    "@types/react-dom": "^16.8.4",
+    "react": "^16.8.6",
+    "react-dom": "^16.8.6"
+  }
+}

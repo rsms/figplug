@@ -1,0 +1,12 @@
+.DS_Store
+*.g.*
+*.sublime*
+.tscache*
+report.*
+
+/node_modules
+/build
+/bin/*.g
+/examples/**/build
+/examples/**/node_modules
+/_local

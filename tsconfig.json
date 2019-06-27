@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    // strict:
+    // "noUnusedLocals": true,
+    // "noUnusedParameters": true,
+
+    "allowUnreachableCode": false,
+    // "isolatedModules": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "preserveConstEnums": true,
+    // "removeComments": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "alwaysStrict": true,
+    "allowSyntheticDefaultImports": true,
+    "noEmitOnError": true,
+
+    // "module": "commonjs",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "newLine": "LF",
+    "target": "es2017",
+    "sourceMap": true,
+    "lib": [
+      // "dom",
+      "es2017"
+    ],
+    "baseUrl": "src",
+    "outDir": "out",
+    "pretty": true
+  },
+  "include": [
+    "build/figma-plugin-ns.d.ts",
+    "src/global.d.ts",
+    "src/main.ts",
+  ]
+}

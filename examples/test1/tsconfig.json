@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "es2017",
+    "lib": [
+      "es2017",
+      "dom"
+    ],
+    "jsx": "react",
+    "baseUrl": "src"
+  },
+  "include": [
+    "src/figma.d.ts"
+  ]
+}

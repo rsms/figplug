@@ -1,0 +1,70 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>figplug</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <link rel="stylesheet" href="raster.css">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <grid columns=3 columns-s=1 class="examples">
+
+    <c>
+      <h1>figplug</h1>
+      <p>
+        figplug is a small program for building Figma plugins.
+        It offers all the things you need for most projects:
+        TypeScript, React/JSX, asset bundling, plugin manifest generation, etc.
+      </p>
+    </c>
+
+    <c><h4>Use</h4>
+      <p>
+        Create or initialize a new plugin project:
+        <code-snippet>figplug init</code-snippet>
+      </p>
+      <p>
+        Create a new plugin with UI:
+        <code-snippet>figplug init -ui</code-snippet>
+      </p>
+      <p>
+        Build a plugin, rebuilding it automatically as your source files change:
+        <code-snippet>figplug build -w</code-snippet>
+      </p>
+      <p>
+        Build a plugin with optimizations:
+        <code-snippet>figplug build -O</code-snippet>
+      </p>
+      <p>
+        See help for more options:
+        <code-snippet>
+          figplug help init<br>
+          figplug help build
+        </code-snippet>
+      </p>
+    </c>
+
+    <c><h4>Install</h4>
+      <p>
+        <a href="figplug.zip">Download figplug.zip</a>, unzip and…
+      </p>
+      <code-snippet>cd figplug && npm install --only=prod</code-snippet>
+      <p>
+        Note: Since this is pre-release beta software, figplug is not yet available
+        from npm.
+      </p>
+    </c>
+
+  </grid>
+
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-105091131-1"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'UA-105091131-1');
+  </script>
+</body>
+</html>

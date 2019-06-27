@@ -1,0 +1,5 @@
+{ "version": "0.6.0",
+  "name": "figplug example: manifest-build",
+  "script": "plugin.js",
+  "build": "../../bin/figplug -o=. src"
+}
