@@ -16,22 +16,27 @@ if ! (npm pack .. > /dev/null 2>&1); then  # very noisy
   exit 1
 fi
 TAR_FILE=$(echo figplug-*.tgz)
-tar xzf "$TAR_FILE"
 
-pushd package >/dev/null
-ZIP_FILE=$(echo "$TAR_FILE" | sed 's/.tgz//g').zip
-echo "write build/${ZIP_FILE}"
-zip -q -X -r "../$ZIP_FILE" *
+# tar xzf "$TAR_FILE"
+# pushd package >/dev/null
+# ZIP_FILE=$(echo "$TAR_FILE" | sed 's/.tgz//g').zip
+# echo "write build/${ZIP_FILE}"
+# zip -q -X -r "../$ZIP_FILE" *
+# popd >/dev/null  # back to ./build
 
-popd >/dev/null  # back to ./build
 popd >/dev/null  # back to .
 
-if [ -f "docs/dist/$ZIP_FILE" ]; then
-  echo "docs/dist/$ZIP_FILE already exists -- cowardly refusing to overwrite" >&2
+# cp -a "build/$ZIP_FILE" "docs/dist/figplug.zip"
+
+DIST_FILE=fp-$(echo "$TAR_FILE" | sed 's/^figplug-//g')
+
+if [ -f "docs/$DIST_FILE" ]; then
+  echo "Package docs/$DIST_FILE already exists. You can manually replace it:" >&2
+  echo "  cp -va 'build/$TAR_FILE' 'docs/$DIST_FILE'" >&2
   exit 1
 fi
 
-cp -a "build/$ZIP_FILE" "docs/dist/$ZIP_FILE"
+cp -va "build/$TAR_FILE" "docs/$DIST_FILE"
 
 echo ""
 echo "Remember to update the download link in docs/index.html"

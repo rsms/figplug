@@ -1,6 +1,7 @@
 :root {
   --fontSize: calc(100vw / 80);
   --columnGap: calc(var(--lineHeight) * 3);
+  --accent: #ff2cb1;
 }
 @media only screen and (max-width: 600px) { :root {
   --fontSize: calc(100vw / 30);
@@ -9,13 +10,30 @@
   --fontSize: 1.7vw;
 }}
 
+h1 {
+  color: var(--accent);
+}
+
 code-snippet {
   display: block;
-  background: #eee;
-  padding: calc(var(--lineHeight) / 2) calc(var(--lineHeight) / 4);
+  /*background: #eee;
+  padding: calc(var(--lineHeight) / 2) calc(var(--lineHeight) / 4);*/
+  color: var(--accent);
   margin: calc(var(--lineHeight) / 2) 0 !important;
   border-radius: 2px;
   font-family: IBM Plex Mono, monospace;
   -webkit-font-feature-settings: "ss02" 1,"zero" 1;
   font-feature-settings: "ss02" 1,"zero" 1;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  -webkit-nbsp-mode: space;
+  line-break: after-white-space;
+  max-width: 100%;
+}
+code-snippet a {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  -webkit-nbsp-mode: space;
+  line-break: after-white-space;
+  max-width: 100%;
 }
