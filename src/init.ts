@@ -20,13 +20,14 @@ export async function initPlugin(props :InitOptions) :Promise<bool> {
 type PluginUIKind = "ts+html" | "html" | "react" | null
 
 export interface InitOptions {
-  dir        :string
-  srcdir?    :string // defaults to dir
-  name?      :string // defaults to basename(dir)
-  ui?        :PluginUIKind
-  overwrite? :bool
-  verbose?   :bool
-  debug?     :bool
+  dir         :string
+  srcdir?     :string // defaults to dir
+  name?       :string // defaults to basename(dir)
+  ui?         :PluginUIKind
+  overwrite?  :bool
+  verbose?    :bool
+  debug?      :bool
+  apiVersion? :string  // defaults to latest; can also use value "latest"
 }
 
 export class PluginInitializer {
@@ -65,7 +66,18 @@ export class PluginInitializer {
     this.ui = props.ui || null
     this.overwrite = !!props.overwrite
 
-    this.apiVersion   = ""
+    this.apiVersion = FIGMA_API_VERSIONS[0] // latest
+    if (props.apiVersion && props.apiVersion != "latest") {
+      if (FIGMA_API_VERSIONS.includes(props.apiVersion)) {
+        this.apiVersion = props.apiVersion
+      } else {
+        console.warn(
+          `Unknown Figma Plugin API version ${repr(props.apiVersion)}. ` +
+          `Using version ${FIGMA_API_VERSIONS[0]} instead.`
+        )
+      }
+    }
+
     this.manifestFile = pjoin(this.dir, "manifest.json")
     this.tsconfigFile = pjoin(this.dir, "tsconfig.json")
     this.packageFile  = pjoin(this.dir, "package.json")
@@ -80,9 +92,6 @@ export class PluginInitializer {
 
 
   async initPlugin() :Promise<bool> {
-    if (!this.apiVersion) {
-      this.apiVersion = await getLatestFigmaPluginAPIVersion()
-    }
     let tasks :Promise<bool>[] = [
       this.writeManifest(),
       this.writePlugin(),
@@ -268,21 +277,4 @@ async function getTsConfigTemplate() :Promise<{[k:string]:any}> {
     _tsConfigTemplate = JSON.stringify(jsonparse(await readfile(fn, "utf8")))
   }
   return JSON.parse(_tsConfigTemplate) // copy
-}
-
-
-let _latestFigmaPluginAPIVersion = null as string | null
-
-async function getLatestFigmaPluginAPIVersion() :Promise<string> {
-  if (!_latestFigmaPluginAPIVersion) {
-    let fn = pjoin(figplugDir, "lib", "figma-plugin-latest.d.ts")
-    let src = await readfile(fn, "utf8")
-    let m = src.match(/\s+readonly\s+version:\s*"([^"]+)",/m)
-    if (m && m[1]) {
-      _latestFigmaPluginAPIVersion = m[1].trim()
-    } else {
-      throw new Error(`failed to find version in ${fn}`)
-    }
-  }
-  return _latestFigmaPluginAPIVersion
 }

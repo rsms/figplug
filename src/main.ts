@@ -6,8 +6,6 @@ import * as Path from 'path'
 import * as fs from 'fs'
 import { BuildCtx } from './ctx'
 import { initPlugin, InitOptions } from './init'
-// import { install as smsInstall } from '../deps/source-map-support'
-// smsInstall()
 
 
 async function buildPlugin(manifest :Manifest, c :BuildCtx) {
@@ -86,7 +84,14 @@ async function main_version(argv :string[], baseopt: {[k:string]:any}={}) {
   opt.verbose = opt.verbose || opt.v || baseopt.verbose
 
   print(`figplug ${VERSION}`)
+
   if (opt.verbose) {
+    print(
+      `Supported Figma Plugin API versions:` +
+      `\n  ${FIGMA_API_VERSIONS.join("\n  ")}`
+    )
+
+    print(`System and library info:`)
     let p = JSON.parse(fs.readFileSync(__dirname + "/../package.json", "utf8"))
     let nmdir = __dirname + "/../node_modules/"
     let extraInfo = [
@@ -134,8 +139,9 @@ async function main_init(argv :string[], baseopt: {[k:string]:any}={}) {
     ["html",         "Generate UI written purely in HTML"],
     ["react",        "Generate UI written in React"],
     [["f", "force"], "Overwrite or replace existing files"],
+    ["api",          `Specify Figma Plugin API version. Defaults to "${FIGMA_API_VERSIONS[0]}".`, "<version>"],
     ["name",         "Name of plugin. Defaults to directory name.", "<name>"],
-    ["srcdir",       "Where to put source files, relative to <dir>. Defaults to \".\"", "<dirname>"],
+    ["srcdir",       "Where to put source files, relative to <dir>. Defaults to \".\".", "<dirname>"],
     ...baseCliOptions
   )
 
@@ -149,6 +155,7 @@ async function main_init(argv :string[], baseopt: {[k:string]:any}={}) {
     name: opt.name,
     overwrite: !!opt.force,
     srcdir: opt.srcdir as string|undefined,
+    apiVersion: opt.api as string|undefined,
     ui: (
       opt["react"] ? "react" :
       opt["html"]  ? "html" :

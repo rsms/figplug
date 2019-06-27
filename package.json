@@ -1,6 +1,6 @@
 {
   "name": "figplug",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "bin": {
     "figplug": "bin/figplug"
   },
@@ -37,7 +37,6 @@
   "devDependencies": {
     "@types/node": "^12.0.7",
     "@types/svgo": "^1.0.2",
-    "miniglob": "^0.1.1",
     "rollup-plugin-json": "^4.0.0",
     "source-map-support": "^0.5.12",
     "uglify-es": "^3.3.9"

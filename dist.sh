@@ -1,28 +1,30 @@
 #!/bin/bash -e
 cd "$(dirname "$0")"
 
+echo "building bin/figplug"
 ./build.js -O
 
-echo "testing figplug by building examples"
-./bin/figplug build examples/basic
-./bin/figplug build examples/ui
-./bin/figplug build examples/ui-html
+echo "testing figplug"
+./test.sh
 
-echo "npm pack"
 pushd build >/dev/null
 rm -rf figplug-*.tgz package
-npm pack ..
+echo "npm pack"
+if ! (npm pack .. > /dev/null 2>&1); then  # very noisy
+  # repeat to print errors
+  npm pack ..
+  exit 1
+fi
 TAR_FILE=$(echo figplug-*.tgz)
 tar xzf "$TAR_FILE"
 
 pushd package >/dev/null
 ZIP_FILE=$(echo "$TAR_FILE" | sed 's/.tgz//g').zip
+echo "write build/${ZIP_FILE}"
 zip -q -X -r "../$ZIP_FILE" *
-popd >/dev/null
 
-popd >/dev/null
-
-echo "created build/$ZIP_FILE"
+popd >/dev/null  # back to ./build
+popd >/dev/null  # back to .
 
 if [ -f "docs/dist/$ZIP_FILE" ]; then
   echo "docs/dist/$ZIP_FILE already exists -- cowardly refusing to overwrite" >&2

@@ -138,21 +138,37 @@ if (!bundleWorld) {
   externalLibs = externalLibs.concat(Object.keys(pkg.devDependencies || {}))
 }
 
-// constant definitions that may be inlined
-const defines_inline = {
-  DEBUG: debug,
-}
+// find supported plugin api versions
+// figmaPluginApiVersions is an array ordered from latest to oldest versions.
+// e.g. ["0.10.2", "0.10.1", "0.10.0", "0.9.4", ...]
+let figmaPluginApiVersions = (() => {
+  let v = fs.readdirSync(pjoin(__dirname, 'lib'))
+    .map(fn => {
+      let m = fn.match(/^.+-([\d\.]+)\.d\.ts$/, "$1")
+      return m ? m[1] : ""
+    })
+    .filter(fn => fn.length > 0)
+  v.sort((a, b) => {
+    let [a1,a2,a3] = a.split(".").map(Number)
+    let [b1,b2,b3] = b.split(".").map(Number)
+    return (
+      a1 < b1 ? 1 :
+      b1 < a1 ? -1 :
+      a2 < b2 ? 1 :
+      b2 < a2 ? -1 :
+      a3 < b3 ? 1 :
+      b3 < a3 ? -1 :
+      0
+    )
+  })
+  return v
+})();
 
-// constant defintions (will be available as `const name = value` at runtime)
-const defines_all = Object.assign({
-  VERSION,
-}, defines_inline)
 
-
-// write figma api global definition file
+// write figma api global definition file used by figplug itself
 fs.mkdirSync(builddir, {recursive:true})
 let figmaApiDefs = fs.readFileSync(
-  pjoin(__dirname, 'lib', 'figma-plugin-latest.d.ts'),
+  pjoin(__dirname, 'lib', `figma-plugin-${figmaPluginApiVersions[0]}.d.ts`),
   'utf8'
 )
 let startIndex = figmaApiDefs.indexOf("interface")
@@ -165,6 +181,19 @@ figmaApiDefs = (
 )
 const figmaGlobalApiDFile = pjoin(builddir, 'figma-plugin-ns.d.ts')
 fs.writeFileSync(figmaGlobalApiDFile, figmaApiDefs, 'utf8')
+
+
+// constant definitions that may be inlined
+const defines_inline = {
+  DEBUG: debug,
+  FIGMA_API_VERSIONS: figmaPluginApiVersions,
+}
+
+// constant defintions (will be available as `const name = value` at runtime)
+const defines_all = Object.assign({
+  VERSION,
+}, defines_inline)
+
 
 // typescript config
 const tsconfig = {

@@ -1,3 +1,6 @@
+// Note: this is used as both a template for new projects as well
+// as the default config file for projects that does not declare one.
+// Therefore this needs to be fully functional.
 {
   "compilerOptions": {
     "target": "es2017",
@@ -6,8 +9,5 @@
       "dom"
     ]
   },
-  "include": [
-    // Example. "include" is replaced with actual includes
-    "figma.d.ts"
-  ]
+  "include": []
 }

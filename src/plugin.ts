@@ -27,10 +27,13 @@ function getFigplugLib() :Lib {
 let figmaPluginLibCache = new Map<string,Lib>()  // by version
 
 function getFigmaPluginLib(apiVersion? :string) :Lib {
-  let v = (apiVersion && apiVersion != "latest") ? "-" + apiVersion : ""
+  let v :string = FIGMA_API_VERSIONS[0] // latest version
+  if (apiVersion && apiVersion != "latest") {
+    v = apiVersion
+  }
   let lib = figmaPluginLibCache.get(v)
   if (!lib) {
-    let dfile = pjoin(figplugDir, 'lib', `figma-plugin${v}.d.ts`)
+    let dfile = pjoin(figplugDir, 'lib', `figma-plugin-${v}.d.ts`)
     if (!existsSync(dfile)) {
       console.warn(
         `warning: unknown Figma API version ${apiVersion}.`+

@@ -9,6 +9,7 @@ import { join as pjoin, relative as relpath, dirname, basename } from 'path'
 import { readFileSync } from 'fs'
 import { writefile, readfile, stat, mkdir } from './fs'
 import { AssetBundler } from './asset'
+import { figplugDir } from './ctx'
 import {
   inlineSourceMap,
   rpath,
@@ -579,7 +580,12 @@ export class Product {
         stdlibs = userTsConfig.lib.slice()
       }
     } catch (_) {
-      userTsConfigFile = undefined
+      // Note: we leave userTsConfigFile set to the file that doesn't exist
+      // as the rollup-plugin-typescript2 library will otherwise try to find
+      // another tsconfig file, which will certainly be the wrong one.
+      // Because of this, we set the tsconfig to point to our default
+      // template tsconfig file in lib.
+      userTsConfigFile = pjoin(figplugDir, "lib", "template-tsconfig.json")
     }
 
     // add libs d files
@@ -676,6 +682,7 @@ export class Product {
           entry: this.entry,
           srcdir: this.srcdir,
           targetESVersion: this.targetESVersion,
+          tsconfig: userTsConfigFile,
           "tsconfig.compilerOptions": Object.assign(
             {},
             defaultCompilerOptions,

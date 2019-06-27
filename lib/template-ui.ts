@@ -1,6 +1,6 @@
 
 document.getElementById('create')!.onclick = () => {
-  const textbox = id(document.getElementById('count') as HTMLInputElement)
+  const textbox = document.getElementById('count')! as HTMLInputElement
   const count = parseInt(textbox.value, 10)
   parent.postMessage({ pluginMessage: { type: 'create-rectangles', count } }, '*')
 }
