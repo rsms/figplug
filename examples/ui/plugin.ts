@@ -1,7 +1,7 @@
 const redPaint :SolidPaint = { type: "SOLID", color: { r: 1, g: 0, b: 0 } }
 
 function createRectangles(count :number) {
-  const nodes :BaseNode[] = []
+  const nodes :SelectableNode[] = []
   for (let i = 0; i < count; i++) {
     const rect = figma.createRectangle()
     rect.x = i * 150
