@@ -6,7 +6,7 @@ report.*
 
 /node_modules
 /build
-/bin/*.g
+/bin
 /examples/**/build
 /examples/**/node_modules
 /_local
