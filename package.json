@@ -27,6 +27,7 @@
     "build-o": "node build.js -O",
     "build-g": "node build.js -w"
   },
+  "engines" : { "node" : ">=8.0.0" },
   "dependencies": {
     "postcss-nesting": "^7.0.0",
     "rollup": "^1.14.4",
