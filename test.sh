@@ -50,11 +50,11 @@ if [[ "$PROG" == "bin/figplug.g" ]]; then
 fi
 
 # test program in package
-echo "  $PROG init -v build/simple";                 ./$PROG init -v build/simple
-echo "  $PROG init -v -ui build/ui";                 ./$PROG init -v -ui build/ui
-echo "  $PROG init -v -html build/ui-html";          ./$PROG init -v -html build/ui-html
-echo "  $PROG init -v -react build/ui-react";        ./$PROG init -v -react build/ui-react
-echo "  $PROG init -v -react -force build/ui-react"; ./$PROG init -v -react -force build/ui-react
+echo ">> $PROG init -v build/simple";                 ./$PROG init -v build/simple
+echo ">> $PROG init -v -ui build/ui";                 ./$PROG init -v -ui build/ui
+echo ">> $PROG init -v -html build/ui-html";          ./$PROG init -v -html build/ui-html
+echo ">> $PROG init -v -react build/ui-react";        ./$PROG init -v -react build/ui-react
+echo ">> $PROG init -v -react -force build/ui-react"; ./$PROG init -v -react -force build/ui-react
 
 for d in \
   build/simple \
@@ -65,7 +65,7 @@ for d in \
   examples/ui \
   examples/ui-html \
 ; do
-  echo "  $PROG build $d"
+  echo ">> $PROG build $d"
   ./$PROG build -v $d
 done
 
