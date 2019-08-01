@@ -84,13 +84,12 @@ async function main_version(argv :string[], baseopt: {[k:string]:any}={}) {
   opt.verbose = opt.verbose || opt.v || baseopt.verbose
 
   print(`figplug ${VERSION}`)
+  print(
+    `Supported Figma Plugin API versions:` +
+    `\n  ${FIGMA_API_VERSIONS.join("\n  ")}`
+  )
 
   if (opt.verbose) {
-    print(
-      `Supported Figma Plugin API versions:` +
-      `\n  ${FIGMA_API_VERSIONS.join("\n  ")}`
-    )
-
     print(`System and library info:`)
     let p = JSON.parse(fs.readFileSync(__dirname + "/../package.json", "utf8"))
     let nmdir = __dirname + "/../node_modules/"

@@ -3,14 +3,33 @@ import { readfile, stat } from './fs'
 import { jsonparse } from './util'
 import { join as pjoin } from 'path'
 
-export interface ManifestProps extends Figma.ManifestJson {
-  ui? :string
-    // ui is an alternative to the html property.
-    // It is automatically set to the value of "html" if "html" property is
-    // present.
+export interface ManifestProps {
+  name   :string
+  api    :string
+  main   :string
+  id?    :string
+  ui?    :string
+  menu?  :MenuEntry[]
+  build? :string
 }
 
-// props of Figma.ManifestJson
+export type MenuEntry = MenuItem | MenuSeparator | Menu
+export interface MenuItem {
+  name    :string
+  command :string
+}
+export interface MenuSeparator {
+  separator :true
+}
+export interface Menu {
+  name :string
+  menu :MenuEntry[]
+}
+
+// type union of possible values of figma manifest
+type ManifestValue = string | MenuEntry[]
+
+/*
 const standardProps = new Set([
   "version",
   "name",
@@ -25,14 +44,25 @@ const requiredProps = [
   "name",
   "version",
   "script",
+]*/
+
+// props of Figma.ManifestJson
+const standardProps = new Set([
+  "name",
+  "api",
+  "main",
+  "id",
+  "ui",
+  "menu",
+  "build",
+])
+
+// props required by Figma.ManifestJson
+const requiredProps = [
+  "name",
+  "api",
+  "main",
 ]
-
-// type union of possible values of figma manifest
-type StdManifestValue = string | Figma.ManifestMenuItem[]
-
-// TODO: whenever the figma api divergest from the above, introduce versioning
-// on the props lists. Use the "version" information in the manifest to
-// select which data to care about.
 
 // TODO: consider preprocessing the TypeScript definitions to automatically
 // generate the data above.
@@ -47,26 +77,26 @@ export class Manifest {
     this.props = props
   }
 
-  // returns a copy of props containing only Figma-standard properties
-  //
-  getStandardProps() :Figma.ManifestJson {
-    let props = {} as Figma.ManifestJson
-    for (let k in this.props) {
-      if (standardProps.has(k)) {
-        (props as any)[k] = (this.props as any)[k]
-      }
-    }
-    return props
-  }
+  // REMOVE
+  // // returns a copy of props containing only Figma-standard properties
+  // //
+  // getStandardProps() :Figma.ManifestJson {
+  //   let props = {} as Figma.ManifestJson
+  //   for (let k in this.props) {
+  //     if (standardProps.has(k)) {
+  //       (props as any)[k] = (this.props as any)[k]
+  //     }
+  //   }
+  //   return props
+  // }
 
-  // returns a map of Figma-standard properties in a predefined,
-  // well-known order.
+  // returns a map of properties in a predefined, well-known order.
   //
-  getStandardPropMap() :Map<string,StdManifestValue> {
-    let m = new Map<string,StdManifestValue>()
-    for (let k in this.props) {
-      if (standardProps.has(k)) {
-        m.set(k, (this.props as any)[k])
+  propMap() :Map<string,ManifestValue> {
+    let m = new Map<string,ManifestValue>()
+    for (let name of standardProps) {
+      if (this.props.hasOwnProperty(name)) {
+        m.set(name, (this.props as any)[name])
       }
     }
     return m
@@ -109,10 +139,6 @@ export class Manifest {
         throw new Error(`missing ${repr(prop)} property in ${file}`)
       }
     }
-
-    // alias html <-> ui
-    props.ui = props.ui || props.html
-    props.html = props.html || props.ui
 
     return new Manifest(file, props)
   }

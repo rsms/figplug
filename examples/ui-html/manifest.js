@@ -1,6 +1,6 @@
-{ version: "0.6.0",  // Figma plugin API version
+{ api:  "1.0.0",
   name: "figplug example: ui-ts-html",
-  id: "YOUR_ID_HERE",
-  script: "plugin.ts",
-  ui: "ui.html",
+  id:   "YOUR_ID_HERE",
+  main: "plugin.ts",
+  ui:   "ui.html",
 }

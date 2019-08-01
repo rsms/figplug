@@ -1,5 +1,5 @@
-{ version: "0.6.0",
-  name: "figplug example: manifest-build",
-  script: "plugin.ts",
+{ api:   "1.0.0",
+  name:  "figplug example: manifest-build",
+  main:  "plugin.ts",
   build: "../../bin/figplug -o=. src",
 }

@@ -66,7 +66,7 @@ export class PluginTarget {
     this.manifest = manifest
     this.basedir = dirname(manifest.file)
 
-    let pluginSrcFile = pjoin(this.basedir, manifest.props.script)
+    let pluginSrcFile = pjoin(this.basedir, manifest.props.main)
 
     this.srcdir = dirname(pluginSrcFile)
     this.outdir = outdir = outdir || pjoin(this.srcdir, "build")
@@ -74,7 +74,7 @@ export class PluginTarget {
 
     // setup libs
     let figplugLib = getFigplugLib()
-    let figmaPluginLib = getFigmaPluginLib(manifest.props.version)
+    let figmaPluginLib = getFigmaPluginLib(manifest.props.api)
 
     // setup plugin product
     this.pluginProduct = new Product({
@@ -167,7 +167,7 @@ export class PluginTarget {
     watchFile(this.manifest.file, {}, async () => {
       try {
         let manifest2 = await Manifest.loadFile(this.manifest.file)
-        if (this.manifest.props.script != manifest2.props.script ||
+        if (this.manifest.props.main != manifest2.props.main ||
             this.manifest.props.ui != manifest2.props.ui)
         {
           // source changed -- need to restart build process
@@ -343,14 +343,14 @@ export class PluginTarget {
 
 
   writeManifestFile(c :BuildCtx, manifest :Manifest) :Promise<void> {
-    let props = manifest.getStandardPropMap()
+    let props = manifest.propMap()
 
     // override source file names
-    props.set("script", basename(this.pluginProduct.outfile))
+    props.set("main", basename(this.pluginProduct.outfile))
     if (this.htmlOutFile) {
-      props.set("html", basename(this.htmlOutFile))
+      props.set("ui", basename(this.htmlOutFile))
     } else {
-      props.delete("html")
+      props.delete("ui")
     }
 
     // generate JSON

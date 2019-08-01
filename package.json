@@ -1,11 +1,15 @@
 {
   "name": "figplug",
-  "version": "0.0.4",
+  "version": "0.0.5",
+  "description": "Figma plugin builder",
   "bin": {
     "figplug": "bin/figplug"
   },
-  "author": "rsms",
   "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/rsms/figplug.git" },
+  "keywords": [ "figma", "helper", "plugin", "builder", "compiler" ],
+  "author": "Rasmus Andersson <https://rsms.me/>",
+  "homepage": "https://rsms.me/figplug/",
   "files": [
     "LICENSE",
     "README.md",

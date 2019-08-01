@@ -2,6 +2,7 @@ import { readfile, writefile, copyfile, exists } from './fs'
 import { jsonfmt, jsonparse } from './util'
 import * as proc from './proc'
 import { figplugDir } from './ctx'
+import { ManifestProps } from './manifest'
 import {
   join as pjoin,
   dirname,
@@ -241,10 +242,10 @@ export class PluginInitializer {
 
   async writeManifest() :Promise<bool> {
     // manifest data
-    let manifest :{[k:string]:any} = {
-      version: this.apiVersion,
+    let manifest :ManifestProps = {
+      api:  this.apiVersion,
       name: this.name,
-      script: relpath(this.dir, this.pluginFile),
+      main: relpath(this.dir, this.pluginFile),
     }
     if (this.ui == "html") {
       manifest.ui = relpath(this.dir, this.htmlFile)

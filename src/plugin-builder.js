@@ -172,9 +172,9 @@ async function generateManifestFile(p, manifest) {
   )
 
   // override source file names
-  entries.set('script', 'plugin.js')
+  entries.set('main', 'plugin.js')
   if (p.pluginUI) {
-    entries.set('html', 'ui.html')
+    entries.set('ui', 'ui.html')
   }
 
   // generate JSON
@@ -198,8 +198,8 @@ function watchAuxFiles(p) {
 async function loadManifest(file) {
   let manifest = jsonparse(await readfile(file, 'utf8'), file)
   assert(manifest.name, `missing "name" in ${file}`)
-  assert(manifest.version, `missing "version" in ${file}`)
-  assert(manifest.script, `missing "script" in ${file}`)
+  assert(manifest.api, `missing "api" in ${file}`)
+  assert(manifest.main, `missing "main" in ${file}`)
   return manifest
 }
 
@@ -222,17 +222,17 @@ async function makePlugin(manifestFile) {
   }
 
   let p = new Product({ ...baseProductOptions,
-    entry:   pjoin(srcdir, manifest.script),
+    entry:   pjoin(srcdir, manifest.main),
     outfile: pjoin(outdir, 'plugin.js'),
     libs:    pluginLibs,
   })
 
   // UI?
-  if (manifest.html) {
-    let uisrc = pparse(manifest.html)
+  if (manifest.ui) {
+    let uisrc = pparse(manifest.ui)
     let uisrcName = pjoin(uisrc.dir, uisrc.name)
     p.pluginUI = new Product({ ...baseProductOptions,
-      entry:   pjoin(srcdir, manifest.html),
+      entry:   pjoin(srcdir, manifest.ui),
       outfile: pjoin(outdir, 'ui.js'),
       libs:    uiLibs,
     })
@@ -253,8 +253,8 @@ async function makePlugin(manifestFile) {
     fs.watch(manifestFile, {}, async () => {
       try {
         let manifest2 = await loadManifest(manifestFile)
-        if (manifest.script != manifest2.script ||
-            manifest.html != manifest2.html) {
+        if (manifest.main != manifest2.main ||
+            manifest.ui != manifest2.ui) {
           // source changed -- need to restart build process
           // TODO: automate restarting the build
           console.error(
