@@ -2,7 +2,7 @@
 cd "$(dirname "$0")"
 
 rm -rf build/*
-rm bin/figplug bin/figplug.map
+rm -f bin/figplug bin/figplug.map
 
 echo "building bin/figplug"
 ./build.js -O
