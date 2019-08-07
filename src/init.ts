@@ -172,9 +172,6 @@ export class PluginInitializer {
       return this.warnFileExist(this.tsconfigFile)
     }
     let tsconfig = await getTsConfigTemplate()
-    tsconfig.include = [
-      relpath(this.dir, this.figmaDtsFile),
-    ]
     if (this.ui == "react") {
       tsconfig.compilerOptions.jsx = "react"
     }
