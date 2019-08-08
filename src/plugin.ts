@@ -17,8 +17,8 @@ let _figplugLib :Lib|null = null
 
 function getFigplugLib() :Lib {
   return _figplugLib || (_figplugLib = new Lib({
-    dfile:    pjoin(figplugDir, 'lib', 'global.d.ts'),
-    jsfile:   pjoin(figplugDir, 'lib', 'global.js'),
+    dfile:    pjoin(figplugDir, 'lib', 'figplug.d.ts'),
+    jsfile:   pjoin(figplugDir, 'lib', 'figplug.js'),
     cachedir: pjoin(os.tmpdir(), 'figplug'),
   }))
 }

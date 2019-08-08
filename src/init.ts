@@ -40,14 +40,15 @@ export class PluginInitializer {
   verbose   :bool
   debug     :bool
 
-  apiVersion   :string
-  manifestFile :string
-  tsconfigFile :string
-  packageFile  :string
-  figmaDtsFile :string
-  pluginFile   :string
-  htmlFile     :string
-  uiFile       :string
+  apiVersion     :string
+  manifestFile   :string
+  tsconfigFile   :string
+  packageFile    :string
+  figmaDtsFile   :string
+  figplugDtsFile :string
+  pluginFile     :string
+  htmlFile       :string
+  uiFile         :string
 
   wrotePackage :bool = false
 
@@ -79,13 +80,14 @@ export class PluginInitializer {
       }
     }
 
-    this.manifestFile = pjoin(this.dir, "manifest.json")
-    this.tsconfigFile = pjoin(this.dir, "tsconfig.json")
-    this.packageFile  = pjoin(this.dir, "package.json")
-    this.figmaDtsFile = pjoin(this.dir, "figma.d.ts")
-    this.pluginFile   = pjoin(this.srcdir, "plugin.ts")
-    this.htmlFile     = pjoin(this.srcdir, "ui.html")
-    this.uiFile       = pjoin(
+    this.manifestFile   = pjoin(this.dir, "manifest.json")
+    this.tsconfigFile   = pjoin(this.dir, "tsconfig.json")
+    this.packageFile    = pjoin(this.dir, "package.json")
+    this.figmaDtsFile   = pjoin(this.dir, "figma.d.ts")
+    this.figplugDtsFile = pjoin(this.dir, "figplug.d.ts")
+    this.pluginFile     = pjoin(this.srcdir, "plugin.ts")
+    this.htmlFile       = pjoin(this.srcdir, "ui.html")
+    this.uiFile         = pjoin(
       this.srcdir,
       this.ui == "react" ? "ui.tsx" : "ui.ts"
     )
@@ -96,7 +98,8 @@ export class PluginInitializer {
     let tasks :Promise<bool>[] = [
       this.writeManifest(),
       this.writePlugin(),
-      this.writeTypeDefsFile(),
+      this.writeFigmaTypeDefsFile(),
+      this.writeFigplugTypeDefsFile(),
       this.writeTSConfig(),
     ]
     switch (this.ui) {
@@ -152,7 +155,7 @@ export class PluginInitializer {
   }
 
 
-  async writeTypeDefsFile() :Promise<bool> {
+  async writeFigmaTypeDefsFile() :Promise<bool> {
     let templateFile = pjoin(
       figplugDir,
       "lib",
@@ -164,6 +167,17 @@ export class PluginInitializer {
       return true
     }
     return copyfile(templateFile, this.figmaDtsFile).then(()=>true)
+  }
+
+
+  async writeFigplugTypeDefsFile() :Promise<bool> {
+    let templateFile = pjoin(figplugDir, "lib", "figplug.d.ts")
+    if (!this.overwrite && await exists(this.figplugDtsFile)) {
+      // TODO: check for version mismatch
+      console.error(`${this.figplugDtsFile} already exists`)
+      return true
+    }
+    return copyfile(templateFile, this.figplugDtsFile).then(()=>true)
   }
 
 
