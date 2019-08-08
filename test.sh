@@ -6,11 +6,12 @@ if [[ "$1" == "-h"* ]] || [[ "$1" == "--h"* ]]; then
   exit 1
 fi
 
+SRCDIR=$PWD
+
 PROG=bin/figplug
 if [ "$1" != "" ]; then
   PROG=$1
 fi
-
 if ! [ -f "$PROG" ]; then
   if [[ "$PROG" == "bin/figplug.g" ]]; then
     ./build.js
@@ -22,38 +23,36 @@ if ! [ -f "$PROG" ]; then
   fi
 fi
 
-pushd build >/dev/null
-# >>> at ./build
+tmpdir=$(mktemp -d -t figplug-test)
+echo "using working directory ${tmpdir}"
+rm -f test-dir
+ln -s test-dir "${tmpdir}"
 
-# cleanup from previous builds
-rm -rf figplug-*.tgz package
+pushd "$tmpdir" >/dev/null
 
 # package
-if ! (npm pack .. > /dev/null 2>&1); then  # very noisy
+if ! (npm pack "$SRCDIR" > /dev/null 2>&1); then  # very noisy
   # repeat to print errors
-  npm pack ..
+  npm pack "$SRCDIR"
   exit 1
 fi
-
-# extract
 TAR_FILE=$(echo figplug-*.tgz)
 tar xzf "$TAR_FILE"
 
-rm -rf package-test
-cp -a package package-test
+pushd package >/dev/null
+# >>> at tmpdir/package
 
-pushd package-test >/dev/null
-# >>> at ./build/package-test
+npm install --only=prod
 
 if [[ "$PROG" == "bin/figplug.g" ]]; then
-  cp -a ../../bin/figplug.g bin/figplug.g
+  cp -a "$SRCDIR/bin/figplug.g" bin/figplug.g
 fi
 
 # test program in package
-echo ">> $PROG init -v build/simple";                 ./$PROG init -v build/simple
-echo ">> $PROG init -v -ui build/ui";                 ./$PROG init -v -ui build/ui
-echo ">> $PROG init -v -html build/ui-html";          ./$PROG init -v -html build/ui-html
-echo ">> $PROG init -v -react build/ui-react";        ./$PROG init -v -react build/ui-react
+echo ">> $PROG init -v build/simple";                 ./$PROG init -v               build/simple
+echo ">> $PROG init -v -ui build/ui";                 ./$PROG init -v -ui           build/ui
+echo ">> $PROG init -v -html build/ui-html";          ./$PROG init -v -html         build/ui-html
+echo ">> $PROG init -v -react build/ui-react";        ./$PROG init -v -react        build/ui-react
 echo ">> $PROG init -v -react -force build/ui-react"; ./$PROG init -v -react -force build/ui-react
 
 for d in \
@@ -68,6 +67,9 @@ for d in \
   echo ">> $PROG build $d"
   ./$PROG build -v $d
 done
+
+echo "cleaning up working directory $tmpdir"
+rm -rf "$tmpdir"
 
 echo "————————————————————————————————————————"
 echo "tests OK"
