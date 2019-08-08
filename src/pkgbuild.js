@@ -341,10 +341,11 @@ export class Product {
       /[\r\n\s]*\/\/#\s*sourceMappingURL\s*=\s*[^\r\n]+[\r\n]*/m,
       ''
     )
-    if (c.debug) {
-      js += "\n" + inlineSourceMap(mapjson)
-    } else {
+    if (c.optimize) {
+      // sidecar file
       js += '\n//#sourceMappingURL=' + basename(this.mapfile) + "\n"
+    } else {
+      js += "\n" + inlineSourceMap(mapjson)
     }
     return js
   }
@@ -457,6 +458,12 @@ export class Product {
 
         // update output
         this.output = { js, map }
+
+        // write files
+        await Promise.all([
+          writefile(this.outfile, js, 'utf8'),
+          writefile(this.mapfile, map, 'utf8'),
+        ])
 
         this.reportBuildCompleted(c, startTime)
 
