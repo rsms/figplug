@@ -20,8 +20,7 @@ VERSION=$(node -e 'process.stdout.write(require("./package.json").version)')
 
 echo ""
 echo "Next steps:"
-echo "1) Commit changes"
-echo "2) git tag v${VERSION} && git push --tags"
-echo "3) npm publish ."
-echo "4) Bump version in package.json"
+echo "1) git tag v${VERSION} && git push --tags master"
+echo "2) npm publish ."
+echo "3) Bump version in package.json"
 echo ""
