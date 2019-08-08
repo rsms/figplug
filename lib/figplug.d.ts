@@ -1,12 +1,16 @@
-// symbolic aliases
-type int = number
-type float = number
-type byte = number
-type bool = boolean
+// Helpers provided automatically, as needed, by figplug.
 
-// non-standard global constants
+// symbolic type aliases
+type int   = number
+type float = number
+type byte  = number
+type bool  = boolean
+
+// compile-time constants
 declare const DEBUG :boolean
 declare const VERSION :string
+
+// global namespace. Same as `window` in a regular web context.
 declare const global :{[k:string]:any}
 
 // panic prints a message, stack trace and exits the process
