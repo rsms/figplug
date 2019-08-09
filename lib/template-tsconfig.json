@@ -3,6 +3,7 @@
 // Therefore this needs to be fully functional.
 {
   "compilerOptions": {
+    "moduleResolution": "node",
     "target": "es2017",
     "lib": [
       "es2017",
