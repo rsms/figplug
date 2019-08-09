@@ -48,6 +48,7 @@ export class PluginInitializer {
   figplugDtsFile :string
   pluginFile     :string
   htmlFile       :string
+  cssFile        :string
   uiFile         :string
 
   wrotePackage :bool = false
@@ -87,6 +88,7 @@ export class PluginInitializer {
     this.figplugDtsFile = pjoin(this.dir, "figplug.d.ts")
     this.pluginFile     = pjoin(this.srcdir, "plugin.ts")
     this.htmlFile       = pjoin(this.srcdir, "ui.html")
+    this.cssFile        = pjoin(this.srcdir, "ui.css")
     this.uiFile         = pjoin(
       this.srcdir,
       this.ui == "react" ? "ui.tsx" : "ui.ts"
@@ -107,9 +109,11 @@ export class PluginInitializer {
         break
       case "html":
         tasks.push(this.writeHTML())
+        tasks.push(this.writeCSS())
         break
       case "ts+html":
         tasks.push(this.writeHTML())
+        tasks.push(this.writeCSS())
         tasks.push(this.writeUITS())
         break
       case "react":
@@ -155,6 +159,22 @@ export class PluginInitializer {
   }
 
 
+  writefile(filename :string, text :string) :Promise<bool> {
+    if (this.verbose) {
+      print(`write ${relpath(this.dir, filename)}`)
+    }
+    return writefile(filename, text, "utf8").then(() => true)
+  }
+
+
+  copyfile(srcfile :string, dstfile :string) :Promise<bool> {
+    if (this.verbose) {
+      print(`write ${relpath(this.dir, dstfile)}`)
+    }
+    return copyfile(srcfile, dstfile).then(() => true)
+  }
+
+
   async writeFigmaTypeDefsFile() :Promise<bool> {
     let templateFile = pjoin(
       figplugDir,
@@ -166,7 +186,7 @@ export class PluginInitializer {
       console.error(`${this.figmaDtsFile} already exists`)
       return true
     }
-    return copyfile(templateFile, this.figmaDtsFile).then(()=>true)
+    return this.copyfile(templateFile, this.figmaDtsFile)
   }
 
 
@@ -177,7 +197,7 @@ export class PluginInitializer {
       console.error(`${this.figplugDtsFile} already exists`)
       return true
     }
-    return copyfile(templateFile, this.figplugDtsFile).then(()=>true)
+    return this.copyfile(templateFile, this.figplugDtsFile)
   }
 
 
@@ -190,7 +210,15 @@ export class PluginInitializer {
       tsconfig.compilerOptions.jsx = "react"
     }
     let tsconfigJson = jsonfmt(tsconfig) + "\n"
-    return writefile(this.tsconfigFile, tsconfigJson, "utf8").then(()=>true)
+    return this.writefile(this.tsconfigFile, tsconfigJson)
+  }
+
+
+  async writeCSS() :Promise<bool> {
+    if (!this.overwrite && await exists(this.cssFile)) {
+      return this.warnFileExist(this.cssFile)
+    }
+    return this.copyfile(pjoin(figplugDir, "lib", "template.css"), this.cssFile)
   }
 
 
@@ -201,11 +229,12 @@ export class PluginInitializer {
     let templateFile = pjoin(
       figplugDir,
       "lib",
-      ( this.ui == "react" ? "template-ui-react.html" :
-                             "template-ui.html"
+      ( this.ui == "react"   ? "template-ui-react.html" :
+        this.ui == "ts+html" ? "template-ui.ts.html" :
+                               "template-ui.html"
       ),
     )
-    return copyfile(templateFile, this.htmlFile).then(()=>true)
+    return this.copyfile(templateFile, this.htmlFile)
   }
 
 
@@ -214,7 +243,7 @@ export class PluginInitializer {
       return this.warnFileExist(this.uiFile)
     }
     let templateFile = pjoin(figplugDir, "lib", "template-ui.ts")
-    return copyfile(templateFile, this.uiFile).then(()=>true)
+    return this.copyfile(templateFile, this.uiFile)
   }
 
 
@@ -223,7 +252,7 @@ export class PluginInitializer {
       return this.warnFileExist(this.uiFile)
     }
     let templateFile = pjoin(figplugDir, "lib", "template-ui-react.tsx")
-    return copyfile(templateFile, this.uiFile).then(()=>true)
+    return this.copyfile(templateFile, this.uiFile)
   }
 
 
@@ -233,7 +262,7 @@ export class PluginInitializer {
     }
     this.wrotePackage = true
     let templateFile = pjoin(figplugDir, "lib", "template-package-react.json")
-    return copyfile(templateFile, this.packageFile).then(()=>true)
+    return this.copyfile(templateFile, this.packageFile)
   }
 
 
@@ -247,7 +276,7 @@ export class PluginInitializer {
       this.ui ? "template-plugin-ui.ts" :
                 "template-plugin.ts"
     )
-    return copyfile(templateFile, this.pluginFile).then(()=>true)
+    return this.copyfile(templateFile, this.pluginFile)
   }
 
 
@@ -276,7 +305,7 @@ export class PluginInitializer {
     }
 
     let json = jsonfmt(manifest) + "\n"
-    return writefile(this.manifestFile, json, "utf8").then(() => true)
+    return this.writefile(this.manifestFile, json)
   }
 }
 
