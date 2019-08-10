@@ -613,12 +613,8 @@ export class Product {
         "react" : undefined )
     )
 
-    let typescriptObj = typescript
-    let assetRollupPlugin = null
-    if (jsx) {
-      typescriptObj = this.assetBundler.getTypescriptProxy()
-      assetRollupPlugin = this.assetBundler.getRollupPlugin()
-    }
+    let typescriptObj = this.assetBundler.getTypescriptProxy()
+    let assetRollupPlugin = this.assetBundler.getRollupPlugin()
 
     let defaultCompilerOptions = {
       removeComments: !c.debug,

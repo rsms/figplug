@@ -58,6 +58,7 @@ export class AssetBundler {
     ['.png',  'image/png'],
     ['.gif',  'image/gif'],
     ['.svg',  'image/svg+xml'],
+    ['.dat',  'application/octet-stream'],
   ])
 
   assetCache = new Map() // .d.ts path => {meta, mimeType, file}
