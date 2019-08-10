@@ -185,7 +185,10 @@ async function main_build(argv :string[], baseopt: {[k:string]:any}={}) {
   const [opt, args] = parseopt(argv.slice(1),
     `Usage: $prog ${argv[0]} [options] [<path> ...]\n` +
     "Builds Figma plugins.\n" +
-    "<path>  Path to a plugin directory or a manifest file. Defaults to \".\"."
+    "<path>  Path to a plugin directory or a manifest file. Defaults to \".\".\n" +
+    "        You can optionally specify an output directory for every path through\n" +
+    "        <path>:<outdir>. Example: src:build.\n" +
+    "        This is useful when building multiple plugins at the same time."
     ,
     ["w",       "Watch sources for changes and rebuild incrementally"],
     ["g",       "Generate debug code (assertions and DEBUG branches)."],
@@ -217,8 +220,18 @@ async function main_build(argv :string[], baseopt: {[k:string]:any}={}) {
 
   // build a plugin for each input manifest location
   return Promise.all(manifestPaths.map(async (path) => {
+    let c2 :BuildCtx = c
+
+    let i = path.indexOf(":")
+    if (i != -1) {
+      let outdir = path.substr(i+1)
+      path = path.substr(0, i)
+      c2 = new BuildCtx(c2)
+      c2.outdir = outdir
+    }
+
     let manifest = await Manifest.load(path)
-    return buildPlugin(manifest, c)
+    return buildPlugin(manifest, c2)
   })).then(()=>{})
 }
 

@@ -58,6 +58,7 @@ export class PluginTarget {
   readonly pluginProduct :Product
 
   readonly uiProduct     :Product|null = null
+  readonly pluginOutFile :string
   readonly htmlOutFile   :string = "" // non-empty when uiProduct is set
   readonly htmlInFile    :string = "" // non-empty when uiProduct is set
   readonly cssInFile     :string = "" // non-empty when uiProduct is set
@@ -71,6 +72,7 @@ export class PluginTarget {
     this.srcdir = dirname(pluginSrcFile)
     this.outdir = outdir = outdir || pjoin(this.srcdir, "build")
     this.name = manifest.props.name
+    this.pluginOutFile = pjoin(outdir, parsePath(pluginSrcFile).name + '.js')
 
     // setup libs
     let figplugLib = getFigplugLib()
@@ -80,7 +82,7 @@ export class PluginTarget {
     this.pluginProduct = new Product({
       version: "0",
       entry:   pluginSrcFile,
-      outfile: pjoin(outdir, 'plugin.js'),
+      outfile: this.pluginOutFile,
       basedir: this.basedir,
       libs:    [ figplugLib, figmaPluginLib ],
     })
@@ -95,7 +97,7 @@ export class PluginTarget {
 
       this.htmlInFile = uisrcName + '.html'
       this.cssInFile  = uisrcName + '.css'
-      this.htmlOutFile = pjoin(outdir, 'ui.html')
+      this.htmlOutFile = pjoin(outdir, uisrcFilePath.name + '.html')
 
       if (!uisrcFile.endsWith(".html")) {
         this.uiProduct = new Product({

@@ -11,4 +11,12 @@ export class BuildCtx {
   verbose  = false
   verbose2 = false
   outdir   = ""  // empty means "infer from source"
+
+  constructor(props? :Partial<BuildCtx>) {
+    if (props) {
+      for (let k in props) {
+        (this as any)[k] = (props as any)[k]
+      }
+    }
+  }
 }
