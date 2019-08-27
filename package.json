@@ -1,6 +1,6 @@
 {
   "name": "figplug",
-  "version": "0.0.12",
+  "version": "0.1.0",
   "description": "Figma plugin builder",
   "bin": {
     "figplug": "bin/figplug"
