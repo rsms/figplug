@@ -3,14 +3,19 @@ import { readfile, stat } from './fs'
 import { jsonparse } from './util'
 import { join as pjoin } from 'path'
 
+export interface ManifestFigPlugProps {
+  libs? :string[]
+}
+
 export interface ManifestProps {
-  name   :string
-  api    :string
-  main   :string
-  id?    :string
-  ui?    :string
-  menu?  :MenuEntry[]
-  build? :string
+  name     :string
+  api      :string
+  main     :string
+  id?      :string
+  ui?      :string
+  menu?    :MenuEntry[]
+  build?   :string
+  figplug? :ManifestFigPlugProps
 }
 
 export type MenuEntry = MenuItem | MenuSeparator | Menu
@@ -76,19 +81,6 @@ export class Manifest {
     this.file = file
     this.props = props
   }
-
-  // REMOVE
-  // // returns a copy of props containing only Figma-standard properties
-  // //
-  // getStandardProps() :Figma.ManifestJson {
-  //   let props = {} as Figma.ManifestJson
-  //   for (let k in this.props) {
-  //     if (standardProps.has(k)) {
-  //       (props as any)[k] = (this.props as any)[k]
-  //     }
-  //   }
-  //   return props
-  // }
 
   // returns a map of properties in a predefined, well-known order.
   //

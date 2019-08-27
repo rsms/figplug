@@ -57,7 +57,7 @@ export type Usage = string
 //   [ "o", "", "<path>" ]
 //   Value flag without description.
 //
-//   [ "limit", "Show no more than <limit> items", "<limit:number>" ]
+//   [ "limit", "Show no more than <limit> items", "<limit>:number" ]
 //   Value flag with type constraint. Passing a value that is not a JS number
 //   causes an error message.
 //
@@ -118,7 +118,16 @@ export function parseopt(argv :string[], usage :Usage, ...flags :FlagSpec[]) :[O
         }
       } // else -k=v
       try {
-        options[arg] = opt.valueParser ? opt.valueParser(argval) : argval
+        let value = opt.valueParser ? opt.valueParser(argval) : argval
+        if (opt.multi) {
+          if (arg in options) {
+            options[arg].push(value)
+          } else {
+            options[arg] = [value]
+          }
+        } else {
+          options[arg] = value
+        }
       } catch (err) {
         console.error(`invalid value for option -${arg} (${err.message})`)
       }
@@ -140,6 +149,7 @@ interface Opt {
   description? :string
   valueName?   :string
   valueType?   :string
+  multi?       :bool  // true for list types e.g. "foo:string[]"
   valueParser? :(v:string)=>any
 }
 
@@ -171,12 +181,17 @@ function flagspecToOpt(f :FlagSpec) :Opt {
     description: f[1] || undefined
   }
   if (f[2]) {
-    let [name, type] = f[2].replace(/^[<>]+|[<>]+$/g, '').split(/:/, 2)
+    let [name, type] = f[2].split(/:/, 2)
     if (type) {
+      o.multi = type.endsWith("[]")
+      if (o.multi) {
+        type = type.substr(0, type.length-2)
+      }
       switch (type.toLowerCase()) {
 
         case 'string':
         case 'str':
+        case '':
           type = 'string'
           break
 
@@ -241,12 +256,12 @@ function printUsage(opts :Opt[], usage? :Usage) {
         f.valueName ? f.flags.map(s => (
           f.valueType == "boolean" ?
             s + '=on|off' :
-            s + '=<' + f.valueName + '>'
+            s + '=' + f.valueName + ''
         )) : f.flags
       ).join(', -')
 
       if (flagName.length > 20) {
-        flagName = flagName.replace(/, -/g, ',\n  -')
+        flagName = flagName.replace(/, -/g, ',\n    -')
         for (let line of flagName.split(/\n/)) {
           longestFlagName = Math.max(longestFlagName, line.length)
         }
@@ -259,7 +274,9 @@ function printUsage(opts :Opt[], usage? :Usage) {
     for (let i = 0; i < opts.length; i++) {
       let f = opts[i]
       let names = flagNames[i]
-      let padding = spaces.substr(0, longestFlagName - names.length)
+      // "length" of name is length of last line (catches multi-line names)
+      let namelen = (v => v[v.length-1].length)(names.split("\n"))
+      let padding = spaces.substr(0, longestFlagName - namelen)
       if (f.description) {
         s += `${names}${padding}  ${f.description}\n`
       } else {

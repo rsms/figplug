@@ -39,12 +39,22 @@ export const mkdirs :(path :string)=>Promise<void> = (
   }
 )
 
+export const readdir = promisify(fs.readdir)
+
 export const readfile = promisify(fs.readFile)
 
 export async function exists(path :fs.PathLike) :Promise<bool> {
   try {
     await stat(path)
     return true
+  } catch(_) {}
+  return false
+}
+
+export async function isFile(path :fs.PathLike) :Promise<bool> {
+  try {
+    let st = await stat(path)
+    return st.isFile()
   } catch(_) {}
   return false
 }

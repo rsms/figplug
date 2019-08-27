@@ -51,18 +51,13 @@ export class LibBase {
 }
 
 
-// interface LibProps {
-//   jsfile?   :string
-//   cachedir? :string
-// }
-//
 export class Lib extends LibBase {
   constructor(props/*? :string|LibProps*/) {
     super()
     if (typeof props == "string") {
       props = { dfile: props }
     }
-    this.dfile = Path.resolve(props.dfile)
+    this.dfile = props.dfile ? Path.resolve(props.dfile) : ''
     this.jsfile = props.jsfile ? Path.resolve(props.jsfile) : ''
     this.cachedir = props.cachedir ? Path.resolve(props.cachedir) : '.'
     this._cacheDebug = null
@@ -75,6 +70,15 @@ export class Lib extends LibBase {
     }
   }
 
+  toString() {
+    let s = ""
+    const cwd = process.cwd()
+    const r = fn => fn.startsWith(cwd) ? rpath(fn) : fn
+    if (this.dfile) { s = r(this.dfile) }
+    if (this.jsfile) { s += (s ? ":" : "") + r(this.jsfile) }
+    return "Lib(" + s + ")"
+  }
+
   getDefines(debug) {
     return {
       DEBUG: debug,
@@ -82,10 +86,16 @@ export class Lib extends LibBase {
   }
 
   async getCode(c) { // :string
+    // stat source file
+    let srcst = await stat(this.jsfile)
+
     // attempt to load from memory
     let cached = c.debug ? this._cacheDebug : this._cacheNonDebug
-    if (cached) {
-      return cached
+    if (cached && cached.mtimeMs >= srcst.mtimeMs) {
+      if (c.verbose2) {
+        print(`cache hit for lib ${this} (${repr(cachefile)})`)
+      }
+      return cached.code
     }
 
     if (this._isBuilding) {
@@ -120,24 +130,26 @@ export class Lib extends LibBase {
 
       // cached version exists and is up to date?
       try {
-        let [srcst, cachest] = await Promise.all([
-          stat(this.jsfile),
-          stat(cachefile),
-        ])
+        let cachest = await stat(cachefile)
         if (
           (srcst.mtimeMs !== undefined && srcst.mtimeMs <= cachest.mtimeMs) ||
           (srcst.mtimeMs === undefined && srcst.mtime <= cachest.mtime)
         ) {
           if (c.verbose2) {
-            print(`cache hit for lib ${rpath(this.jsfile)} (${repr(cachefile)})`)
+            print(`cache hit for lib ${this} (${repr(cachefile)})`)
           }
           return doneBuilding(null, readfile(cachefile, 'utf8'))
+        }
+        if (c.verbose2) {
+          print(`cache miss for lib ${this} (${repr(cachefile)})`)
         }
       } catch (_) {}
 
       // if we get here, we need to compile the library
       if (c.verbose2) {
         print(`build lib ${this.jsfile} -> ${cachefile}`)
+      } else if (c.verbose && this instanceof UserLib) {
+        print(`build lib ${this}`)
       }
       let r = await this.compile(c, this.jsfile, cachefile)
 
@@ -159,10 +171,11 @@ export class Lib extends LibBase {
       }
 
       // memoize
+      let cache = { code: r.code, mtimeMs: Date.now() }
       if (c.debug) {
-        this._cacheDebug = r.code
+        this._cacheDebug = cache
       } else {
-        this._cacheNonDebug = r.code
+        this._cacheNonDebug = cache
       }
 
       return doneBuilding(null, r.code)
@@ -211,6 +224,11 @@ export class StdLib extends LibBase {
 }
 
 
+// UserLib represents a user-provided library
+export class UserLib extends Lib {
+}
+
+
 export class Product {
   constructor(props /*:ProductProps*/) {
     this.outfile = Path.resolve(props.outfile)
@@ -255,6 +273,15 @@ export class Product {
 
     // output data, updated when building
     this.output = { js: "", map: "" }
+  }
+
+
+  copy() {
+    let p2 = Object.create(this.constructor.prototype)
+    for (let k of Object.keys(this)) {
+      p2[k] = this[k]
+    }
+    return p2
   }
 
 
@@ -321,6 +348,7 @@ export class Product {
 
   preBuild(c) {
     for (let k in this.definesInline) {
+      // no work to be done
       return
     }
     this.definesInline = {}
@@ -379,24 +407,27 @@ export class Product {
       ["catch"](f) { return this.promise.catch(f) },
     }
 
-    buildProcess.promise = new Promise(async (resolve, reject) => {
-      let startTime = Date.now()
-      let isFirstRun = true
+    var wopt = {} // options to rollup.watch
 
+    const configure = async () => {
       let [incfg, outcfg] = await Promise.all([
         this.makeInputConfig(c),
         this.makeOutputConfig(c),
       ])
-
-      const wopt = {
+      wopt = {
         ...incfg,
         output: outcfg,
         watch: {
           clearScreen: true,
         },
       }
+    }
 
-      let watcher = rollup.watch(wopt)
+    buildProcess.promise = new Promise(async (resolve, reject) => {
+      let startTime = Date.now()
+      let isFirstRun = true
+
+      var watcher
 
       buildProcess.end = err => {
         if (buildProcess.ended) {
@@ -407,6 +438,16 @@ export class Product {
           watcher.close()
         } catch (_) {}
         err ? reject(err) : resolve()
+      }
+
+      buildProcess.restart = () => {
+        if (buildProcess.ended) {
+          return
+        }
+        try {
+          watcher.close()
+        } catch (_) {}
+        return startWatcher()
       }
 
       let _onEndBuild = async () => {
@@ -472,51 +513,58 @@ export class Product {
         }
       }
 
-      watcher.on('event', ev => {
-        switch (ev.code) {
+      async function startWatcher() {
+        await configure()
+        watcher = rollup.watch(wopt)
+        watcher.on('event', ev => {
+          switch (ev.code) {
 
-          case 'BUNDLE_START': { // building an individual bundle
-            startTime = Date.now()
-            onstart(isFirstRun)
-            if (isFirstRun) {
-              isFirstRun = false
-            }
-            break
-          }
-
-          case 'BUNDLE_END': { // finished building a bundle
-            // let files = ev.output.map(fn => relpath(pkg.dir, fn)).join(', ')
-            _onEndBuild().catch(err => watcher.emit('error', err))
-            break
-          }
-
-          case 'ERROR': { // encountered an error while bundling
-            this.logBuildError(ev.error)
-            break
-          }
-
-          case 'FATAL': { // encountered an unrecoverable error
-            const err = ev.error
-            if (err) {
-              this.logBuildError(err)
-              if (err.code == 'PLUGIN_ERROR' && err.plugin == 'rpt2') {
-                // TODO: retry buildIncrementally() when source changes
+            case 'BUNDLE_START': { // building an individual bundle
+              startTime = Date.now()
+              onstart(isFirstRun)
+              if (isFirstRun) {
+                isFirstRun = false
               }
-            } else {
-              reject('unknown error')
+              break
             }
-            break
-          }
 
-          case 'START': // the watcher is (re)starting
-          case 'END':   // finished building all bundles
-            break
+            case 'BUNDLE_END': { // finished building a bundle
+              // let files = ev.output.map(fn => relpath(pkg.dir, fn)).join(', ')
+              _onEndBuild().catch(err => watcher.emit('error', err))
+              break
+            }
 
-          default: {
-            console.error('unhandled rollup event:', ev.code, ev)
+            case 'ERROR': { // encountered an error while bundling
+              this.logBuildError(ev.error)
+              break
+            }
+
+            case 'FATAL': { // encountered an unrecoverable error
+              const err = ev.error
+              if (err) {
+                this.logBuildError(err)
+                if (err.code == 'PLUGIN_ERROR' && err.plugin == 'rpt2') {
+                  // TODO: retry buildIncrementally() when source changes
+                }
+              } else {
+                reject('unknown error')
+              }
+              break
+            }
+
+            case 'START': // the watcher is (re)starting
+            case 'END':   // finished building all bundles
+              break
+
+            default: {
+              console.error('unhandled rollup event:', ev.code, ev)
+            }
           }
-        }
-      })
+        })
+      }
+
+      startWatcher()
+
     })
 
     return buildProcess
@@ -599,7 +647,9 @@ export class Product {
 
     // add libs d files
     for (let lib of this.libs) {
-      include.push(lib.dfile)
+      if (lib.dfile) {
+        include.push(lib.dfile)
+      }
     }
 
     // add stdlibs
@@ -693,6 +743,8 @@ export class Product {
             defaultCompilerOptions,
             tsconfig.tsconfigOverride.compilerOptions
           ),
+          "tsconfig.include": tsconfig.tsconfigOverride.include,
+          libs: this.libs.map(String),
         }
       ))
     }
@@ -752,12 +804,20 @@ export class Product {
     }
 
     // add lib code to intro
-    let libcode = await Promise.all( this.libs.map(lib => lib.getCode(c)))
+    let libcode = await Promise.all(this.libs.map(lib => lib.getCode(c)))
     for (let code of libcode) {
       if (code != "") {
         outcfg.intro += code + '\n'
       }
     }
+
+    // Note: This is probably not needed, as TypeScript will complain and not compile.
+    // // wrap user program in function in case we generated an intro.
+    // // this allows user code to redeclare global variables like print or dlog.
+    // if (this.libs.length > 0 || defs.length > 0) {
+    //   outcfg.intro += ";(function(){\n"
+    //   outcfg.outro += "\n})();\n"
+    // }
 
     return outcfg
   }

@@ -1,0 +1,8 @@
+{
+  "api": "1.0.0",
+  "name": "extra-lib",
+  "main": "plugin.ts",
+  "figplug": {
+    "libs": ["libone", "libtwo", "libthree"]
+  }
+}

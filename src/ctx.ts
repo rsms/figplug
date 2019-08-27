@@ -11,6 +11,7 @@ export class BuildCtx {
   verbose  = false
   verbose2 = false
   outdir   = ""  // empty means "infer from source"
+  libs :string[] = []  // filenames
 
   constructor(props? :Partial<BuildCtx>) {
     if (props) {

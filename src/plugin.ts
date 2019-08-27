@@ -1,12 +1,13 @@
 import { BuildCtx, figplugDir } from './ctx'
-import { Lib, StdLib, Product } from './pkgbuild'
+import { Lib, StdLib, UserLib, LibProps, Product, IncrementalBuildProcess } from './pkgbuild'
 import * as os from 'os'
 import { existsSync, watch as watchFile } from 'fs'
 import * as Html from 'html'
 import { jsonfmt, rpath, fmtDuration } from './util'
-import { readfile, writefile } from './fs'
+import { readfile, writefile, isFile } from './fs'
 import postcssNesting from 'postcss-nesting'
 import { Manifest } from './manifest'
+import * as Path from 'path'
 import { join as pjoin, dirname, basename, parse as parsePath } from 'path'
 
 
@@ -48,6 +49,81 @@ function getFigmaPluginLib(apiVersion? :string) :Lib {
 }
 
 
+async function setLibPropsFiles(input: string, fn :string, props :LibProps) {
+  if (fn.endsWith(".d.ts")) {
+    // provided foo.d.ts
+    // =? foo.js
+    // == foo.d.ts
+    if (props.dfile) {
+      throw new Error(`duplicate .d.ts file provided for -lib=${repr(input)}`)
+    }
+    props.dfile = fn
+  } else if (fn.endsWith(".js")) {
+    // provided foo.js
+    // == foo.js
+    // =? foo.d.ts
+    if (props.jsfile) {
+      throw new Error(`duplicate .js file provided for -lib=${repr(input)}`)
+    }
+    props.jsfile = fn
+  } else {
+    // assume fn lacks extension -- look for both fn.js and fn.d.ts
+    let jsfn = fn + ".js"
+    let dtsfn = fn + ".d.ts"
+    let hasJS = props.jsfile ? Promise.resolve(false) : isFile(jsfn)
+    let hasDTS = props.dfile ? Promise.resolve(false) : isFile(dtsfn)
+    if (await hasJS) {
+      props.jsfile = jsfn
+    }
+    if (await hasDTS) {
+      props.dfile = dtsfn
+    }
+  }
+}
+
+
+async function getUserLib(filename :string, basedir :string, cachedir :string) :Promise<UserLib> {
+  let props = {} as LibProps
+  let names = filename.split(":").map(fn => Path.isAbsolute(fn) ? fn : Path.resolve(basedir, fn))
+
+  if (names.length > 1) {
+    // foo.js:foo.d.ts
+    if (names.length > 2) {
+      throw new Error(`too many filenames provided for -lib=${repr(filename)}`)
+    }
+    for (let fn of names) {
+      fn = Path.resolve(fn)
+      await setLibPropsFiles(filename, fn, props)
+    }
+  } else {
+    let fn = Path.resolve(names[0])
+    await setLibPropsFiles(filename, fn, props)
+  }
+  if (!props.dfile && !props.jsfile) {
+    throw new Error(`library not found ${filename} (${names.join(", ")})`)
+  }
+  if (!props.jsfile) {
+    // .d.ts file was set -- try to discover matching .js file
+    let jsfn = props.dfile!.substr(0, props.dfile!.length - ".d.ts".length) + ".js"
+    if (await isFile(jsfn)) {
+      props.jsfile = jsfn
+    }
+  } else if (!props.dfile) {
+    // .js file was set -- try to discover matching .d.ts file
+    let dtsfn = props.jsfile!.substr(0, props.jsfile!.length - ".js".length) + ".d.ts"
+    if (await isFile(dtsfn)) {
+      props.dfile = dtsfn
+    }
+  }
+  if (props.jsfile) {
+    props.cachedir = cachedir
+  }
+  // Note: It probably doesn't help much to cache these, so we don't and keep
+  // this code a little simpler.
+  return new UserLib(props)
+}
+
+
 export class PluginTarget {
   readonly manifest      :Manifest
   readonly basedir       :string  // root of plugin; dirname of manifest.json
@@ -55,13 +131,19 @@ export class PluginTarget {
   readonly outdir        :string
   readonly name          :string  // e.g. "Foo Bar" from manifest.props.name
 
-  readonly pluginProduct :Product
+  // plugin product (mutable as build() may swap around)
+  pluginProduct     :Product
+  origPluginProduct :Product|null = null  // non-null when modified by build()
 
   readonly uiProduct     :Product|null = null
   readonly pluginOutFile :string
   readonly htmlOutFile   :string = "" // non-empty when uiProduct is set
   readonly htmlInFile    :string = "" // non-empty when uiProduct is set
   readonly cssInFile     :string = "" // non-empty when uiProduct is set
+
+  // incremental build promise of plugin
+  pluginIncrBuildProcess :IncrementalBuildProcess|null = null
+
 
   constructor(manifest :Manifest, outdir :string) {
     this.manifest = manifest
@@ -106,7 +188,7 @@ export class PluginTarget {
           outfile: pjoin(outdir, '.ui.js'),
           basedir: this.basedir,
           libs:    [ figplugLib, domTSLib ],
-          jsx:     (ext == ".tsx" || ext == ".jsx") ? "react" : null,
+          jsx:     (ext == ".tsx" || ext == ".jsx") ? "react" : "",
         })
       } // else: HTML-only UI
     }
@@ -116,6 +198,34 @@ export class PluginTarget {
   async build(c :BuildCtx, onbuild? :()=>void) :Promise<void> {
     // TODO: if there's a package.json file in this.basedir then read the
     // version from it and assign it to this.version
+
+    // Did a previous build stuff away an unmodified version of plugin product?
+    if (this.origPluginProduct) {
+      this.pluginProduct = this.origPluginProduct
+      this.origPluginProduct = null
+    }
+
+    // Add extra libs
+    let userLibs :{fn:string,basedir:string}[] = c.libs.map(fn => {
+      // libs defined on command line are relative to current working directory
+      return { fn, basedir: process.cwd() }
+    })
+    if (this.manifest.props.figplug && this.manifest.props.figplug.libs) {
+      for (let fn of this.manifest.props.figplug.libs) {
+        // libs defined in manifest are relative to srcdir
+        userLibs.push({ fn, basedir: this.srcdir })
+      }
+    }
+    if (userLibs.length > 0) {
+      this.origPluginProduct = this.pluginProduct
+      this.pluginProduct = this.pluginProduct.copy()
+      let libs = await Promise.all(
+        userLibs.map(({fn, basedir}) => getUserLib(fn, basedir, this.outdir))
+      )
+      for (let lib of libs) {
+        this.pluginProduct.libs.push(lib)
+      }
+    }
 
     // sanity-check input and output files
     if (this.pluginProduct.entry == this.pluginProduct.outfile) {
@@ -165,6 +275,10 @@ export class PluginTarget {
     // TODO: return cancelable promise, like we do for
     // Product.buildIncrementally.
 
+    if (this.pluginIncrBuildProcess) {
+      throw new Error(`already has incr build process`)
+    }
+
     // reload manifest on change
     watchFile(this.manifest.file, {}, async () => {
       try {
@@ -202,6 +316,27 @@ export class PluginTarget {
       watchFile(this.cssInFile, {}, buildHtml)
     }
 
+    // Watch user libraries
+    let isRestarting = false
+    const rebuildPlugin = () => {
+      if (this.pluginIncrBuildProcess && !isRestarting) {
+        isRestarting = true
+        this.pluginIncrBuildProcess.restart().then(() => {
+          isRestarting = false
+        })
+      }
+    }
+    for (let lib of this.pluginProduct.libs) {
+      if (lib instanceof UserLib) {
+        if (lib.jsfile) {
+          watchFile(lib.jsfile, {}, rebuildPlugin)
+        }
+        if (lib.dfile) {
+          watchFile(lib.dfile, {}, rebuildPlugin)
+        }
+      }
+    }
+
     if (this.uiProduct || this.htmlInFile) {
       let buildCounter = 0
       let onstart = () => {
@@ -215,10 +350,12 @@ export class PluginTarget {
         }
       }
 
+      this.pluginIncrBuildProcess = this.pluginProduct.buildIncrementally(c, onstart, onend)
+
       if (this.uiProduct) {
         // TS UI
         return Promise.all([
-          this.pluginProduct.buildIncrementally(c, onstart, onend),
+          this.pluginIncrBuildProcess,
           this.uiProduct.buildIncrementally(
             c,
             onstart,
@@ -231,7 +368,7 @@ export class PluginTarget {
         // HTML-only UI
         onStartBuildHtml = onstart
         return Promise.all([
-          this.pluginProduct.buildIncrementally(c, onstart, onend),
+          this.pluginIncrBuildProcess,
           buildHtml().then(onend),
         ]).then(() => {})
       }

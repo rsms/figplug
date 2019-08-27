@@ -35,8 +35,9 @@ export class ProductProps {
 }
 
 export interface IncrementalBuildProcess extends Promise<void> {
-  end() :void           // ends build process
-  readonly ended :bool  // true after process has ended
+  end() :void               // ends build process
+  restart() :Promise<void>  // restarts build process
+  readonly ended :bool      // true after process has ended
 }
 
 export interface BuildResult {
@@ -49,10 +50,15 @@ export class Product extends ProductProps {
   readonly output        :BuildResult          // changes on build
   readonly defines       :ConstantDefinitions  // definitions
   readonly definesInline :ConstantDefinitions  // definitions to be inlined
-  readonly libs          :Lib[]
-  readonly stdlibs       :StdLib[]
 
-  constructor(props :Optional<ProductProps>)
+  // libraries can be modified, but should never be changed during a build.
+  libs    :Lib[]
+  stdlibs :StdLib[]
+
+  constructor(props :Partial<ProductProps>)
+
+  // copy returns a shallow copy
+  copy() :Product
 
   async build(c :BuildCtx) :Promise<void>
   buildIncrementally(
@@ -63,17 +69,20 @@ export class Product extends ProductProps {
 }
 
 
-export class LibProps {
+export interface LibProps {
+  dfile?    :string
+  jsfile?   :string
+  cachedir? :string
+}
+export class LibBase {}
+
+export class Lib extends LibBase {
   dfile    :string
   jsfile   :string
   cachedir :string
-}
 
-export class LibBase {}
-
-export class Lib extends LibBase, LibProps {
   constructor(dfile :string)
-  constructor(props :Optional<LibProps> & { dfile :string })
+  constructor(props :LibProps)
 
   getDefines(debug :bool) :ConstantDefinitions
   getCode(c :BuildCtx) :Promise<string>
@@ -84,3 +93,6 @@ export class StdLib extends LibBase {
   readonly name :string
   constructor(name :string)
 }
+
+// UserLib represents a user-provided library
+export class UserLib extends Lib {}

@@ -185,14 +185,17 @@ async function main_build(argv :string[], baseopt: {[k:string]:any}={}) {
   const [opt, args] = parseopt(argv.slice(1),
     `Usage: $prog ${argv[0]} [options] [<path> ...]\n` +
     "Builds Figma plugins.\n" +
+    "\n" +
     "<path>  Path to a plugin directory or a manifest file. Defaults to \".\".\n" +
     "        You can optionally specify an output directory for every path through\n" +
     "        <path>:<outdir>. Example: src:build.\n" +
-    "        This is useful when building multiple plugins at the same time."
+    "        This is useful when building multiple plugins at the same time.\n"
     ,
     ["w",       "Watch sources for changes and rebuild incrementally"],
     ["g",       "Generate debug code (assertions and DEBUG branches)."],
     ["O",       "Generate optimized code."],
+    ["lib",     "Include a global library in plugin code. " +
+                "Can be set multiple times.", "<file>:string[]"],
     ["clean",   "Force rebuilding of everything, ignoring cache. Implied with -O."],
     ["nomin",   "Do not minify or mangle optimized code when -O is enabled."],
     [["o", "output"],  "Write output to directory. Defaults to ./build", "<dir>"],
@@ -211,6 +214,7 @@ async function main_build(argv :string[], baseopt: {[k:string]:any}={}) {
   c.clean    = opt.clean   || c.clean
   c.nomin    = opt.nomin   || c.nomin
   c.outdir   = opt.o || opt.outdir || c.outdir
+  c.libs     = opt.lib || []
 
   // set manifest locations based on CLI arguments
   let manifestPaths = unique(
@@ -228,6 +232,10 @@ async function main_build(argv :string[], baseopt: {[k:string]:any}={}) {
       path = path.substr(0, i)
       c2 = new BuildCtx(c2)
       c2.outdir = outdir
+    }
+
+    if (DEBUG) {
+      Object.freeze(c2)
     }
 
     let manifest = await Manifest.load(path)
