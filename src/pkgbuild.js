@@ -772,8 +772,26 @@ export class Product {
 
         assetRollupPlugin,
       ],
-      onwarn(warning) {
-        console.warn('WARN', warning.message)
+      onwarn(w) {
+        if (w.loc) {
+          let msg = `WARN ${rpath(w.loc.file)}:${w.loc.line}:${w.loc.column} ${w.message}`
+          if (w.frame) {
+            // look for @ts-ignore on preceeding line
+            let lines = w.frame.split("\n")
+            for (let i = 0; i < lines.length; i++) {
+              if (lines[i].startsWith(`${w.loc.line}:`) &&
+                  lines[i-1].match(/\/\/\s*@ts-ignore[\s\r\n]+/))
+              {
+                // ignore
+                return
+              }
+            }
+            msg += "\n" + w.frame
+          }
+          console.warn(msg)
+        } else {
+          console.warn(`WARN ${w.message}`)
+        }
       },
     }
 
