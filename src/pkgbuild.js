@@ -226,6 +226,19 @@ export class StdLib extends LibBase {
 
 // UserLib represents a user-provided library
 export class UserLib extends Lib {
+  getCode(c) {
+    return super.getCode(c).catch(e => {
+      let msg = ""
+      if (e.filename && e.line !== undefined) {
+        // e.message contains filename and location already
+        msg = `Error while building ${this}: ${e.message}`
+      } else {
+        msg = e.stack||String(e)
+      }
+      console.error(msg)
+      return ""
+    })
+  }
 }
 
 
@@ -386,16 +399,17 @@ export class Product {
   //
   buildIncrementally(c, onStartBuild, onEndBuild) { // :IncrBuildProcess
     this.preBuild(c)
+    const p = this
 
     let onstart = (
-      onStartBuild ? isFirstRun => { onStartBuild(this, isFirstRun) } : ()=>{}
+      onStartBuild ? isFirstRun => { onStartBuild(p, isFirstRun) } : ()=>{}
     )
     if (c.verbose2) {
       onstart = isFirstRun => {
         if (onStartBuild) {
-          onStartBuild(this, isFirstRun)
+          onStartBuild(p, isFirstRun)
         }
-        print(`build module ${repr(this.name)}`)
+        print(`build module ${repr(p.name)}`)
       }
     }
 
@@ -411,8 +425,8 @@ export class Product {
 
     const configure = async () => {
       let [incfg, outcfg] = await Promise.all([
-        this.makeInputConfig(c),
-        this.makeOutputConfig(c),
+        p.makeInputConfig(c),
+        p.makeOutputConfig(c),
       ])
       wopt = {
         ...incfg,
@@ -472,44 +486,44 @@ export class Product {
         //   map = Buffer.from(mapstr, 'base64').toString('utf8')
         // } else {
         let [js, map] = await Promise.all([
-          readfile(this.outfile, 'utf8'),
-          readfile(this.mapfile, 'utf8'),
+          readfile(p.outfile, 'utf8'),
+          readfile(p.mapfile, 'utf8'),
         ])
 
         // fixup source map (mutates output.map object)
         let sourcemap = JSON.parse(map)
-        this.patchSourceMap(sourcemap)
+        p.patchSourceMap(sourcemap)
 
         // optimize code
         if (c.optimize) {
-          let r = this._optimize(c, js, sourcemap, outcfg)
+          let r = p._optimize(c, js, sourcemap, outcfg)
           js = r.code
           map = r.map
           // re-write files
           await Promise.all([
-            writefile(this.outfile, js, 'utf8'),
-            writefile(this.mapfile, map, 'utf8'),
+            writefile(p.outfile, js, 'utf8'),
+            writefile(p.mapfile, map, 'utf8'),
           ])
         } else {
           map = JSON.stringify(sourcemap)
         }
 
         // post-process code
-        js = this.postProcessJs(c, js, map)
+        js = p.postProcessJs(c, js, map)
 
         // update output
-        this.output = { js, map }
+        p.output = { js, map }
 
         // write files
         await Promise.all([
-          writefile(this.outfile, js, 'utf8'),
-          writefile(this.mapfile, map, 'utf8'),
+          writefile(p.outfile, js, 'utf8'),
+          writefile(p.mapfile, map, 'utf8'),
         ])
 
-        this.reportBuildCompleted(c, startTime)
+        p.reportBuildCompleted(c, startTime)
 
         if (onEndBuild) {
-          onEndBuild(this)
+          onEndBuild(p)
         }
       }
 
@@ -535,14 +549,14 @@ export class Product {
             }
 
             case 'ERROR': { // encountered an error while bundling
-              this.logBuildError(ev.error)
+              p.logBuildError(ev.error)
               break
             }
 
             case 'FATAL': { // encountered an unrecoverable error
               const err = ev.error
               if (err) {
-                this.logBuildError(err)
+                p.logBuildError(err)
                 if (err.code == 'PLUGIN_ERROR' && err.plugin == 'rpt2') {
                   // TODO: retry buildIncrementally() when source changes
                 }
