@@ -47,7 +47,8 @@ export enum VersionCheckResult {
   UsingLatest = 0, // using the current version
   UsingFuture = 1, // using a future, unreleased version
   UsingOld = 2,    // new version available
-  Error = 99,
+
+  Error = 100,
 }
 
 

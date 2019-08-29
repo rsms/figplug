@@ -6,8 +6,17 @@
     "figplug": "bin/figplug"
   },
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/rsms/figplug.git" },
-  "keywords": [ "figma", "helper", "plugin", "builder", "compiler" ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rsms/figplug.git"
+  },
+  "keywords": [
+    "figma",
+    "helper",
+    "plugin",
+    "builder",
+    "compiler"
+  ],
   "author": "Rasmus Andersson <https://rsms.me/>",
   "homepage": "https://rsms.me/figplug/",
   "files": [
@@ -17,7 +26,6 @@
     "bin/figplug.map",
     "lib",
     "examples",
-
     ".gitignore",
     "build.js",
     "test.sh",
@@ -31,7 +39,9 @@
     "build-o": "node build.js -O",
     "build-g": "node build.js -w"
   },
-  "engines" : { "node" : ">=8.0.0" },
+  "engines": {
+    "node": ">=8.0.0"
+  },
   "dependencies": {
     "postcss-nesting": "^7.0.0",
     "rollup": "^1.14.4",
@@ -46,6 +56,7 @@
     "@types/svgo": "^1.0.2",
     "rollup-plugin-json": "^4.0.0",
     "source-map-support": "^0.5.12",
+    "global-dirs": "^1.0.0",
     "uglify-es": "^3.3.9"
   }
 }

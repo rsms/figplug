@@ -1,4 +1,4 @@
-import { unique } from './util'
+import { unique, isGloballyInstalled } from './util'
 import { Manifest } from './manifest'
 import { parseopt, die, prog, FlagSpec } from './cli'
 import { PluginTarget } from './plugin'
@@ -64,7 +64,7 @@ async function main(argv :string[]) :Promise<void> {
   }
 
   // start version check in background
-  if (!DEBUG && command != "version" && !opt["no-check-version"]) {
+  if (!DEBUG && command != "version" && !opt["no-check-version"] && isGloballyInstalled()) {
     // Note: "version" command checks for version in a custom way
     checkForNewVersion()
   }
@@ -136,11 +136,11 @@ async function main_version(argv :string[], baseopt: {[k:string]:any}={}) {
     print(`    ${k} ${v}`)
   }
 
-  if (opt["no-check-version"]) {
+  if (opt["no-check-version"] || !isGloballyInstalled()) {
     process.exit(0)
   }
 
-  if (!DEBUG) {
+  if (!DEBUG || 1) {
     console.log("Checking for new version...")
     switch (await checkForNewVersion()) {
     case VersionCheckResult.UsingLatest:
@@ -149,10 +149,10 @@ async function main_version(argv :string[], baseopt: {[k:string]:any}={}) {
     case VersionCheckResult.UsingFuture:
       console.log(`You are using a future, unreleased version of figplug.`)
       break
-    case VersionCheckResult.UsingOld:
-      break
     case VersionCheckResult.Error:
       console.log(`An error occured while checking for new version.`)
+      break
+    case VersionCheckResult.UsingOld:
       break
     }
   }

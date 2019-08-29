@@ -1,5 +1,7 @@
-import * as vm from 'vm'
-import { relative as relpath } from 'path'
+import * as vm from "vm"
+import * as fs from "fs"
+import { relative as relpath } from "path"
+import * as globalDirs from "../node_modules/global-dirs"
 
 declare const btoa :undefined|((s:string)=>string)
 
@@ -144,6 +146,15 @@ export function bufcopy(bytes :ArrayLike<byte>, addlSize :int) {
   const b2 = new Uint8Array(size)
   b2.set(bytes, 0)
   return b2
+}
+
+
+// return true if the current program is globally installed
+export function isGloballyInstalled() :bool {
+  return (
+    __dirname.startsWith(globalDirs.yarn.packages) ||
+    __dirname.startsWith(fs.realpathSync(globalDirs.npm.packages))
+  )
 }
 
 
