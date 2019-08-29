@@ -6,6 +6,7 @@ import * as Path from 'path'
 import * as fs from 'fs'
 import { BuildCtx } from './ctx'
 import { initPlugin, InitOptions } from './init'
+import { checkForNewVersion, VersionCheckResult } from "./check-version"
 
 
 async function buildPlugin(manifest :Manifest, c :BuildCtx) {
@@ -17,6 +18,7 @@ const baseCliOptions :FlagSpec[] = [
   [["v", "verbose"], "Print additional information to stdout"],
   ["debug",   "Print a lot of information to stdout. Implies -v"],
   ["version", "Print figplug version information"],
+  ["no-check-version", "Do not check for new version"],
 ]
 
 
@@ -61,6 +63,12 @@ async function main(argv :string[]) :Promise<void> {
     return main_version(args, opt)
   }
 
+  // start version check in background
+  if (!DEBUG && command != "version" && !opt["no-check-version"]) {
+    // Note: "version" command checks for version in a custom way
+    checkForNewVersion()
+  }
+
   switch (command) {
     case "init":  return main_init(args, opt)
     case "build": return main_build(args, opt)
@@ -83,49 +91,71 @@ async function main_version(argv :string[], baseopt: {[k:string]:any}={}) {
   updateBaseCliOptions(baseopt, opt)
   opt.verbose = opt.verbose || opt.v || baseopt.verbose
 
-  print(`figplug ${VERSION}`)
+  print(`figplug ${VERSION}` + (VERSION_TAG ? ` (${VERSION_TAG})` : ""))
   print(
     `Supported Figma Plugin API versions:` +
     `\n  ${FIGMA_API_VERSIONS.join("\n  ")}`
   )
 
-  if (opt.verbose) {
-    print(`System and library info:`)
-    let p = JSON.parse(fs.readFileSync(__dirname + "/../package.json", "utf8"))
-    let nmdir = __dirname + "/../node_modules/"
-    let extraInfo = [
-      ["arch", process.arch],
-      ["platform", process.platform],
-    ] as string[][]
-    for (let k of Object.keys(process.versions)) {
-      extraInfo.push([k, (process.versions as any)[k]])
-    }
-    let longestName = extraInfo.reduce((a, e) => Math.max(a, e[0].length), 0)
-    let spaces = "                                             "
-    for (let [k,v] of extraInfo) {
-      k += spaces.substr(0, longestName - k.length)
-      print(`  ${k} ${v}`)
-    }
+  if (!opt.verbose) {
+    process.exit(0)
+  }
 
-    extraInfo.splice(0, extraInfo.length)
-    for (let dn of Object.keys(p.dependencies)) {
-      try {
-        let p2 = JSON.parse(
-          fs.readFileSync(`${nmdir}/${dn}/package.json`, "utf8")
-        )
-        extraInfo.push([dn, p2.version])
-      } catch (_) {
-        extraInfo.push([dn, "(unavailable)"])
-      }
-    }
-    longestName = extraInfo.reduce((a, e) => Math.max(a, e[0].length), 0)
-    print(`  deps:`)
-    for (let [k,v] of extraInfo) {
-      k += spaces.substr(0, longestName - k.length)
-      print(`    ${k} ${v}`)
+  print(`System and library info:`)
+  let p = JSON.parse(fs.readFileSync(__dirname + "/../package.json", "utf8"))
+  let nmdir = __dirname + "/../node_modules/"
+  let extraInfo = [
+    ["arch", process.arch],
+    ["platform", process.platform],
+  ] as string[][]
+  for (let k of Object.keys(process.versions)) {
+    extraInfo.push([k, (process.versions as any)[k]])
+  }
+  let longestName = extraInfo.reduce((a, e) => Math.max(a, e[0].length), 0)
+  let spaces = "                                             "
+  for (let [k,v] of extraInfo) {
+    k += spaces.substr(0, longestName - k.length)
+    print(`  ${k} ${v}`)
+  }
+
+  extraInfo.splice(0, extraInfo.length)
+  for (let dn of Object.keys(p.dependencies)) {
+    try {
+      let p2 = JSON.parse(
+        fs.readFileSync(`${nmdir}/${dn}/package.json`, "utf8")
+      )
+      extraInfo.push([dn, p2.version])
+    } catch (_) {
+      extraInfo.push([dn, "(unavailable)"])
     }
   }
-  process.exit(0)
+  longestName = extraInfo.reduce((a, e) => Math.max(a, e[0].length), 0)
+  print(`  deps:`)
+  for (let [k,v] of extraInfo) {
+    k += spaces.substr(0, longestName - k.length)
+    print(`    ${k} ${v}`)
+  }
+
+  if (opt["no-check-version"]) {
+    process.exit(0)
+  }
+
+  if (!DEBUG) {
+    console.log("Checking for new version...")
+    switch (await checkForNewVersion()) {
+    case VersionCheckResult.UsingLatest:
+      console.log(`You are using the latest version of figplug.`)
+      break
+    case VersionCheckResult.UsingFuture:
+      console.log(`You are using a future, unreleased version of figplug.`)
+      break
+    case VersionCheckResult.UsingOld:
+      break
+    case VersionCheckResult.Error:
+      console.log(`An error occured while checking for new version.`)
+      break
+    }
+  }
 }
 
 
@@ -240,7 +270,9 @@ async function main_build(argv :string[], baseopt: {[k:string]:any}={}) {
 
     let manifest = await Manifest.load(path)
     return buildPlugin(manifest, c2)
-  })).then(()=>{})
+  })).then(() => {
+    process.exit(0)
+  })
 }
 
 function onError(err :any) {

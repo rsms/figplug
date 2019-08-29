@@ -135,3 +135,84 @@ export function parseVersion(s :string) :int {
   }
   return v[0] << 24 | v[1] << 16 | v[2] << 8 | v[3]  // 8 bytes per component
 }
+
+
+// bufcopy creates a new buffer containing bytes with some additional space.
+//
+export function bufcopy(bytes :ArrayLike<byte>, addlSize :int) {
+  const size = bytes.length + addlSize
+  const b2 = new Uint8Array(size)
+  b2.set(bytes, 0)
+  return b2
+}
+
+
+export class AppendBuffer {
+  buffer :Uint8Array
+  length :int // current offset
+
+  constructor(size :int) {
+    this.length = 0
+    this.buffer = new Uint8Array(size)
+  }
+
+  reset() {
+    this.length = 0
+  }
+
+  // Make sure there's space for at least `size` additional bytes
+  reserve(addlSize :int) {
+    if (this.length + addlSize >= this.buffer.length) {
+      this._grow(addlSize)
+    }
+  }
+
+  // bytes returns a Uint8Array of the written bytes which references the underlying storage.
+  // Further modifications are observable both by the receiver and the returned array.
+  // Use
+  //
+  bytes() :Uint8Array {
+    return this.buffer.subarray(0, this.length)
+  }
+
+  // bytesCopy returns a Uint8Array of the written bytes as a copy.
+  //
+  bytesCopy() :Uint8Array {
+    return this.buffer.slice(0, this.length)
+  }
+
+  writeByte(b :int) :void {
+    if (this.length >= this.buffer.length) {
+      this._grow(8)
+    }
+    this.buffer[this.length++] = b
+  }
+
+  // write b n times
+  writeNbytes(b :int, n :int) :void {
+    if (this.length + n >= this.buffer.length) {
+      this._grow(n)
+    }
+    let end = this.length + n
+    this.buffer.fill(b, this.length, end)
+    this.length = end
+  }
+
+  write(src :Uint8Array, srcStart? :int, srcEnd? :int) :int {
+    if (srcStart === undefined) {
+      srcStart = 0
+    }
+    const end = (srcEnd === undefined) ? src.length : srcEnd
+    const size = end - srcStart
+    if (this.length + size >= this.buffer.length) {
+      this._grow(size)
+    }
+    this.buffer.set(src.subarray(srcStart, srcEnd), this.length)
+    this.length += size
+    return size
+  }
+
+  private _grow(minAddlSize :int) {
+    this.buffer = bufcopy(this.buffer, Math.max(minAddlSize, this.buffer.length))
+  }
+}

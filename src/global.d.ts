@@ -7,6 +7,8 @@ type bool = boolean
 // non-standard global constants
 declare const DEBUG :boolean
 declare const VERSION :string
+declare const VERSION_TAG :string
+declare const VERSION_WITH_TAG :string
 declare const FIGMA_API_VERSIONS :string[]
 declare const global :{[k:string]:any}
 

@@ -126,12 +126,9 @@ if (process.argv.includes('-h') || process.argv.includes('-help')) {
 
 const githashShort = getGitHashSync().substr(0, 10)
 
-const VERSION = (
-  pkg.version + (githashShort ?
-    '-' + (debug ? ('debug+' + githashShort) : githashShort) :
-    ""
-  )
-)
+const VERSION = pkg.version
+const VERSION_TAG = githashShort ? (debug ? ('debug+' + githashShort) : githashShort) : ""
+const VERSION_WITH_TAG = pkg.version + (VERSION_TAG ? "-" + VERSION_TAG : "")
 
 // mark deps as external unless we are bundling stuff together
 if (!bundleWorld) {
@@ -192,6 +189,8 @@ const defines_inline = {
 // constant defintions (will be available as `const name = value` at runtime)
 const defines_all = Object.assign({
   VERSION,
+  VERSION_TAG,
+  VERSION_WITH_TAG,
 }, defines_inline)
 
 
@@ -281,7 +280,7 @@ const rin = {
   },
 }
 
-let versionBanner = `/* ${pkg.name} ${VERSION} */\n`
+let versionBanner = `/* ${pkg.name} ${VERSION_WITH_TAG} */\n`
 let execBanner = ""
 if (productIsExectuable) {
   execBanner = '#!/usr/bin/env TSC_NONPOLLING_WATCHER=1 node\n'
@@ -336,7 +335,7 @@ function buildIncrementally() {
         break
       case 'BUNDLE_START': // building an individual bundle
         const outfiles = ev.output.map(fn => relpath(rootdir, fn)).join(', ')
-        console.log(`build ${outfiles} (${VERSION}) ...`)
+        console.log(`build ${outfiles} (${VERSION_WITH_TAG}) ...`)
         break
       case 'BUNDLE_END':   // finished building a bundle
         onBuildCompleted(
@@ -384,7 +383,7 @@ function buildIncrementally() {
 
 function buildOnce() {
   let startTime = Date.now()
-  console.log(`build ${relpath(rootdir, rout.file)} (${VERSION}) ...`)
+  console.log(`build ${relpath(rootdir, rout.file)} (${VERSION_WITH_TAG}) ...`)
   rollup.rollup(rin).then(bundle => {
     // console.log(`imports: (${bundle.imports.join(', ')})`)
     // console.log(`exports: (${bundle.exports.join(', ')})`)
