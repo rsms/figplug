@@ -1,6 +1,7 @@
 import UglifyJS from '../deps/uglify-es'
 import * as rollup from 'rollup'
 import * as typescript from 'typescript'
+import replacePlugin from 'rollup-plugin-replace'
 import typescriptPlugin from 'rollup-plugin-typescript2'
 import commonjsPlugin from 'rollup-plugin-commonjs'
 import nodeResolvePlugin from 'rollup-plugin-node-resolve'
@@ -768,6 +769,9 @@ export class Product {
     let incfg = {
       input: this.entry,
       plugins: [
+        replacePlugin({
+          'process.env.NODE_ENV': c.debug ? JSON.stringify('development') : JSON.stringify('production')
+        }),
 
         tsPlugin,
 
