@@ -18,6 +18,7 @@ import {
   strUTF8Size,
   fmtDuration,
 } from './util'
+import * as strings from "./strings"
 
 
 // TODO: port this code to typescript
@@ -278,6 +279,9 @@ export class Product {
       }
     }
 
+    // string substitution
+    this.subs = props.subs || []  // [string,string][] ; match string -> replacement string
+
     // constant definitions that may be inlined
     this.definesInline = {}
 
@@ -327,6 +331,11 @@ export class Product {
 
       // fixup source map (mutates output.map object)
       this.patchSourceMap(output.map)
+
+      // apply any string substitution
+      if (this.subs.length > 0) {
+        output.code = strings.sub(output.code, this.subs)
+      }
 
       // optimize code
       if (c.optimize) {

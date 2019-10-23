@@ -1,4 +1,5 @@
 import { BuildCtx } from './ctx'
+import * as strings from './strings'
 
 export interface Pkg {
   dir     :string            // absolute path of directory
@@ -30,6 +31,7 @@ export class ProductProps {
   libs     :LibBase[] // libraries
   banner   :string  // JavaScript to put at top of product code
   jsx      :string  // non-empty to enable JSX processing with named impl
+  subs     :strings.Subs  // substitute left string with right string in generated code
 
   targetESVersion :number  // 0 == latest
 }

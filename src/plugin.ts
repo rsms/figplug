@@ -189,6 +189,9 @@ export class PluginTarget {
           basedir: this.basedir,
           libs:    [ figplugLib, domTSLib ],
           jsx:     (ext == ".tsx" || ext == ".jsx") ? "react" : "",
+          subs: [
+            ["process.env.NODE_ENV", DEBUG ? "'development'" : "'production'"],
+          ],
         })
       } // else: HTML-only UI
     }
