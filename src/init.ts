@@ -154,7 +154,7 @@ export class PluginInitializer {
 
 
   warnFileExist(file :string) :false {
-    console.error(`${file} already exists`)
+    console.error(`skipping existing file ${file}`)
     return false
   }
 
@@ -167,11 +167,20 @@ export class PluginInitializer {
   }
 
 
-  copyfile(srcfile :string, dstfile :string) :Promise<bool> {
+  copyfile(srcfile :string, dstfile :string, message :string = "") :Promise<bool> {
     if (this.verbose) {
-      print(`write ${relpath(this.dir, dstfile)}`)
+      print(`write ${relpath(this.dir, dstfile)}` + (message ? " " + message : ""))
     }
     return copyfile(srcfile, dstfile).then(() => true)
+  }
+
+
+  async compareFiles(file1 :string, file2: string) :Promise<number> {
+    let [data1, data2] = await Promise.all([
+      readfile(file1),
+      readfile(file2),
+    ])
+    return data1.compare(data2)
   }
 
 
@@ -181,23 +190,29 @@ export class PluginInitializer {
       "lib",
       `figma-plugin-${this.apiVersion}.d.ts`
     )
+    let message = ""
     if (!this.overwrite && await exists(this.figmaDtsFile)) {
-      // TODO: check for version mismatch
-      console.error(`${this.figmaDtsFile} already exists`)
-      return true
+      if (await this.compareFiles(templateFile, this.figmaDtsFile) == 0) {
+        // identical -- no need to write
+        return true
+      }
+      message = "(new version)"
     }
-    return this.copyfile(templateFile, this.figmaDtsFile)
+    return this.copyfile(templateFile, this.figmaDtsFile, message)
   }
 
 
   async writeFigplugTypeDefsFile() :Promise<bool> {
     let templateFile = pjoin(figplugDir, "lib", "figplug.d.ts")
+    let message = ""
     if (!this.overwrite && await exists(this.figplugDtsFile)) {
-      // TODO: check for version mismatch
-      console.error(`${this.figplugDtsFile} already exists`)
-      return true
+      if (await this.compareFiles(templateFile, this.figplugDtsFile) == 0) {
+        // identical -- no need to write
+        return true
+      }
+      message = "(new version)"
     }
-    return this.copyfile(templateFile, this.figplugDtsFile)
+    return this.copyfile(templateFile, this.figplugDtsFile, message)
   }
 
 
