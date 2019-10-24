@@ -189,9 +189,6 @@ export class PluginTarget {
           basedir: this.basedir,
           libs:    [ figplugLib, domTSLib ],
           jsx:     (ext == ".tsx" || ext == ".jsx") ? "react" : "",
-          subs: [
-            ["process.env.NODE_ENV", DEBUG ? "'development'" : "'production'"],
-          ],
         })
       } // else: HTML-only UI
     }
@@ -241,6 +238,13 @@ export class PluginTarget {
     if (this.uiProduct && this.uiProduct.entry == this.uiProduct.outfile) {
       throw "ui input file is same as output file: " +
             repr(this.uiProduct.entry)
+    }
+
+    // setup string subs for ui
+    if (this.uiProduct) {
+      this.uiProduct.subs = [
+        ["process.env.NODE_ENV", c.debug ? "'development'" : "'production'"],
+      ]
     }
 
     // reporting
