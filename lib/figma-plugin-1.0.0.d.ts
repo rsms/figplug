@@ -1,4 +1,4 @@
-// Figma Plugin API version 1, update 4
+// Figma Plugin API version 1, update 5
 
 // Global variable with Figma's plugin API.
 declare const figma: PluginAPI
@@ -23,9 +23,9 @@ interface PluginAPI {
   readonly root: DocumentNode
   currentPage: PageNode
 
-  on(type: "selectionchange" | "currentpagechange", callback: () => void) // PROPOSED API ONLY
-  once(type: "selectionchange" | "currentpagechange", callback: () => void) // PROPOSED API ONLY
-  off(type: "selectionchange" | "currentpagechange", callback: () => void) // PROPOSED API ONLY
+  on(type: "selectionchange" | "currentpagechange" | "close", callback: () => void)
+  once(type: "selectionchange" | "currentpagechange" | "close", callback: () => void)
+  off(type: "selectionchange" | "currentpagechange" | "close", callback: () => void)
 
   readonly mixed: symbol
 
@@ -95,6 +95,7 @@ interface ShowUIOptions {
   visible?: boolean,
   width?: number,
   height?: number,
+  position?: 'default' | 'last' | 'auto' // PROPOSED API ONLY
 }
 
 interface UIPostMessageOptions {
@@ -114,10 +115,10 @@ interface UIAPI {
   close(): void
 
   postMessage(pluginMessage: any, options?: UIPostMessageOptions): void
-  onmessage: ((pluginMessage: any, props: OnMessageProperties) => void) | undefined
-  on(type: "message", callback: MessageEventHandler) // PROPOSED API ONLY
-  once(type: "message", callback: MessageEventHandler) // PROPOSED API ONLY
-  off(type: "message", callback: MessageEventHandler) // PROPOSED API ONLY
+  onmessage: MessageEventHandler | undefined
+  on(type: "message", callback: MessageEventHandler)
+  once(type: "message", callback: MessageEventHandler)
+  off(type: "message", callback: MessageEventHandler)
 }
 
 interface ViewportAPI {
@@ -376,7 +377,7 @@ interface Font {
 interface BaseNodeMixin {
   readonly id: string
   readonly parent: (BaseNode & ChildrenMixin) | null
-  name: string // Note: setting this also sets `autoRename` to false on TextNodes
+  name: string // Note: setting this also sets \`autoRename\` to false on TextNodes
   readonly removed: boolean
   toString(): string
   remove(): void
