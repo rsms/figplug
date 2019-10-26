@@ -140,7 +140,7 @@ async function main_version(argv :string[], baseopt: {[k:string]:any}={}) {
     process.exit(0)
   }
 
-  if (!DEBUG || 1) {
+  if (!DEBUG) {
     console.log("Checking for new version...")
     switch (await checkForNewVersion()) {
     case VersionCheckResult.UsingLatest:
