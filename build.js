@@ -26,6 +26,8 @@ const { join: pjoin, relative: relpath, dirname } = Path
 const promisify = require('util').promisify
 const readfile = promisify(fs.readFile)
 const writefile = promisify(fs.writeFile)
+const http = require("http")
+const https = require("https")
 
 const rootdir = __dirname;
 const pkg = require(pjoin(rootdir, 'package.json'))
@@ -95,6 +97,8 @@ const watch = process.argv.includes('-w')
 const minify = !process.argv.includes('-nominify')
 const clean = process.argv.includes('-clean')
 const bundleWorld = !process.argv.includes('-nobundle')
+const showDiff = process.argv.includes('-show-diff')
+const updateTypeDefs = process.argv.includes('-update-type-defs')
 const outfilename = debug ? `${productName}.g` : `${productName}`
 const outfile = pjoin(rootdir, 'bin', outfilename)
 const mapfile = outfile + '.map'
@@ -163,21 +167,25 @@ let figmaPluginApiVersions = (() => {
 
 
 // write figma api global definition file used by figplug itself
-fs.mkdirSync(builddir, {recursive:true})
-let figmaApiDefs = fs.readFileSync(
-  pjoin(__dirname, 'lib', `figma-plugin-${figmaPluginApiVersions[0]}.d.ts`),
-  'utf8'
-)
-let startIndex = figmaApiDefs.indexOf("interface")
-figmaApiDefs = (
-  figmaApiDefs.substr(0, startIndex)
-    .replace(/figma:\s*PluginAPI/g, "figma: Figma.PluginAPI") +
-  'declare namespace Figma {\n' +
-  figmaApiDefs.substr(startIndex) +
-  '\n} // namespace Figma\n'
-)
-const figmaGlobalApiDFile = pjoin(builddir, 'figma-plugin-ns.d.ts')
-fs.writeFileSync(figmaGlobalApiDFile, figmaApiDefs, 'utf8')
+const figmaApiDefsFile = pjoin(__dirname, 'lib', `figma-plugin-${figmaPluginApiVersions[0]}.d.ts`)
+;(() => {
+  fs.mkdirSync(builddir, {recursive:true})
+  let figmaApiDefs = fs.readFileSync(figmaApiDefsFile, 'utf8')
+  let startIndex = figmaApiDefs.indexOf("interface")
+  figmaApiDefs = (
+    figmaApiDefs.substr(0, startIndex)
+      .replace(/figma:\s*PluginAPI/g, "figma: Figma.PluginAPI") +
+    'declare namespace Figma {\n' +
+    figmaApiDefs.substr(startIndex) +
+    '\n} // namespace Figma\n'
+  )
+  const figmaGlobalApiDFile = pjoin(builddir, 'figma-plugin-ns.d.ts')
+  fs.writeFileSync(figmaGlobalApiDFile, figmaApiDefs, 'utf8')
+})
+
+
+// start a network check for new version
+checkForUpdatedFigmaTypeDefs()
 
 
 // constant definitions that may be inlined
@@ -316,11 +324,11 @@ rout.intro += 'var ' + Object.keys(defines_all).map(k =>
 rout.intro += getGlobalJSSync()
 
 
-if (watch) {
-  buildIncrementally()
-} else {
-  buildOnce()
-}
+// if (watch) {
+//   buildIncrementally()
+// } else {
+//   buildOnce()
+// }
 
 
 function buildIncrementally() {
@@ -851,4 +859,124 @@ function getGitHashSync() {
     }
   }
   return cachedGitHash
+}
+
+
+async function checkForUpdatedFigmaTypeDefs() {
+  // https://www.figma.com/plugin-docs/figma.d.ts
+  let url = "https://www.figma.com/plugin-docs/figma.d.ts"
+  let res = await httpGET(url)
+  let latestDefsData = res.body
+  let figmaApiDefsFilename = relpath(".", figmaApiDefsFile)
+  let diff = await diffu(figmaApiDefsFile, latestDefsData, figmaApiDefsFilename, url)
+  if (diff) {
+    if (!updateTypeDefs) {
+      let line1 = latestDefsData.slice(0, 50).toString("utf8").trim().split(/\n/, 2)[0]
+      console.log(
+        `————————————————————————————————————————————————————————————\n` +
+        `There's a new version of figma.d.ts available.\n` +
+        `  ${line1.replace(/^\/\/\s*/, "")}\n` +  // line#1 normally contains version information
+        (showDiff       ? `` : `  ./build.js -show-diff         # show diff\n`) +
+        (updateTypeDefs ? `` : `  ./build.js -update-type-defs  # apply updates\n`) +
+        `————————————————————————————————————————————————————————————`
+      )
+      if (showDiff) {
+        console.log(
+        `————————————————————————————————————————————————————————————\n` +
+        diff +  // note: always ends with newline
+        `————————————————————————————————————————————————————————————`
+        )
+      }
+    } else { // if (updateTypeDefs)
+      console.log(`writing ${figmaApiDefsFilename}`)
+      await writefile(figmaApiDefsFile, latestDefsData)
+    }
+  } else if (updateTypeDefs) {
+    console.log(`${figmaApiDefsFilename} is already up-to-date`)
+  }
+}
+
+
+// diffu(file1 :string, file2 :string, label? :string)
+// diffu(file1 :string, data2 :Uint8Array, label? :string)
+// diffu(data1 :Uint8Array, file2 :string, label? :string)
+//
+function diffu(in1, in2, label1, label2) {
+  return new Promise((resolve, reject) => {
+    try {
+      let arg1 = typeof in1 == "string" ? in1 : "-"
+      let arg2 = typeof in2 == "string" ? in2 : "-"
+      if (arg1 == "-" && arg2 == "-") {
+        throw new Error("both inputs can't be buffer. At least one must be a file")
+      }
+
+      let args = ["-u", "--minimal"]
+      if (label1) {
+        args.push("--label")
+        args.push(label1)
+      }
+      args.push(arg1)
+      if (label2) {
+        args.push("--label")
+        args.push(label2)
+      }
+      args.push(arg2)
+
+      let p = subprocess.spawn("diff", args, {
+        cwd: rootdir,
+        timeout: 2000,
+        stdio: ['pipe', 'pipe', 'inherit']  // in, out, err
+      })
+
+      if (arg1 == "-") {
+        p.stdin.write(in1)
+      } else if (arg2 == "-") {
+        p.stdin.write(in2)
+      }
+      p.stdin.end()
+
+      let output = ""
+      p.stdout.on('data', data => { output += data })
+
+      p.on('exit', code => {
+        resolve(code == 0 ? "" : output)
+      })
+      p.on('error', reject)
+    } catch (err) {
+      reject(err)
+    }
+  })
+}
+
+
+function httpGET(url, options) { // Promise<string>
+  return new Promise((resolve, reject) => {
+    let httpmod = url.startsWith("https:") ? https : http
+    let req = httpmod.get(url, options||{}, res => {
+      let clen = parseInt(res.headers["content-length"])
+      let blen = 0
+      let buf = Buffer.allocUnsafe(isNaN(clen) || clen < 0 ? 512 : clen)
+      res.on('data', chunk => {
+        let nz = blen + chunk.length
+        if (nz > buf.length) {
+          let buf2 = Buffer.allocUnsafe(buf.length * 2)
+          buf2.set(buf, 0)
+          buf = buf2
+        }
+        buf.set(chunk, blen)
+        blen += chunk.length
+      })
+      res.on('end', () => {
+        res.body = buf
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          let body; try { body = buf.toString("utf8") } catch (_) { body = "" }
+          let bodystr = JSON.stringify(body.length > 50 ? body.substr(0,50)+"..." : body)
+          reject(new Error(`HTTP ${res.statusCode} (body: ${bodystr})`))
+        } else {
+          resolve(res)
+        }
+      })
+    })
+    req.on('error', reject)
+  })
 }
