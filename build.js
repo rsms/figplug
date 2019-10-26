@@ -324,11 +324,11 @@ rout.intro += 'var ' + Object.keys(defines_all).map(k =>
 rout.intro += getGlobalJSSync()
 
 
-// if (watch) {
-//   buildIncrementally()
-// } else {
-//   buildOnce()
-// }
+if (watch) {
+  buildIncrementally()
+} else {
+  buildOnce()
+}
 
 
 function buildIncrementally() {
