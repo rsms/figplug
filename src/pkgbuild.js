@@ -505,7 +505,7 @@ export class Product {
 
         // optimize code
         if (c.optimize) {
-          let r = p._optimize(c, js, sourcemap, outcfg)
+          let r = p._optimize(c, js, sourcemap, wopt.output)
           js = r.code
           map = r.map
           // re-write files
