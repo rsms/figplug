@@ -75,6 +75,27 @@ export function inlineSourceMap(json :string) :string {
 }
 
 
+// parseQueryString parses a URL-style query string
+//
+export function parseQueryString(s :string) :Record<string,string[]> {
+  if (s[0] == "?") {
+    s = s.substr(1)
+  }
+  let items :Record<string,string[]> = {}
+  for (let pair of s.split(/\&+/)) {
+    let [k, v] = pair.split(/\=+/, 2)
+    if (!v) { v = "" }
+    let e = items[k]
+    if (e) {
+      e.push(v)
+    } else {
+      items[k] = [v]
+    }
+  }
+  return items
+}
+
+
 // // utf8ByteSize returns the number of bytes needed to represent
 // // codepoint cp as UTF-8
 // //

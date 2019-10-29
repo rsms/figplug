@@ -3,12 +3,13 @@ import { Lib, StdLib, UserLib, LibProps, Product, IncrementalBuildProcess } from
 import * as os from 'os'
 import { existsSync, watch as watchFile } from 'fs'
 import * as Html from 'html'
-import { jsonfmt, rpath, fmtDuration } from './util'
+import { jsonfmt, rpath, fmtDuration, parseQueryString } from './util'
 import { readfile, writefile, isFile } from './fs'
 import postcssNesting from 'postcss-nesting'
 import { Manifest } from './manifest'
 import * as Path from 'path'
 import { join as pjoin, dirname, basename, parse as parsePath } from 'path'
+import { AssetBundler, AssetInfo } from './asset'
 
 
 const domTSLib = new StdLib("dom")
@@ -433,6 +434,10 @@ export class PluginTarget {
       }),
     ])
 
+
+    // Static includes
+    html = await this.processInlineFiles(c, html)
+
     // HTML head and tail
     let head = ""
     let tail = ""
@@ -474,6 +479,225 @@ export class PluginTarget {
     }
 
     return writefile(this.htmlOutFile, htmlOut, 'utf8')
+  }
+
+
+  // processInlineFiles finds, parses and inlines files referenced by `html`.
+  //
+  // This function acts on two different kinds of information:
+  //
+  // - HTML elements like img with a src attribute.
+  //   The src attribute value is replaced with a data url and width and height attributes
+  //   are added (unless specified)
+  //
+  // - Explicit <?include "filename" ?> directives.
+  //   This entire directive is replaced by the contents of the file.
+  //
+  // Filenames are relative to dirname(this.htmlInFile).
+  //
+  // An optional query string parameter "?as=" can be provided with the filename
+  // to <?include?> directives, which controls what the output will be.
+  // The values for "as=" are:
+  //
+  //     as=bytearray
+  //        Inserts a comma-separated sequence of bytes of the file in decimal form.
+  //        e.g. 69,120,97,109,112,108,101  for the ASCII data "Example"
+  //
+  //     as=jsobj
+  //        Inserts a JavaScript literal object with the following interface:
+  //        {
+  //          mimeType :string   // File type. Empty if unknown.
+  //          width?   :number   // for images, the width of the image
+  //          height?  :number   // for images, the height of the image
+  //        }
+  //
+  // Absence of as= query parameters means that the contents of the file is inserted as text.
+  //
+  // Note: File loads are deduplicated, so there's really no performance penalty for including
+  // the same file multiple times. For instance:
+  //
+  //   <img src="foo.png">
+  //   <script>
+  //   const fooData = new Uint8Array([<?include "foo.png?as=bytearray"?>])
+  //   const fooInfo = <?include "foo.png?as=jsobj"?>
+  //   </script>
+  //
+  // This would only cause foo.png to be read once.
+  //
+  async processInlineFiles(c :BuildCtx, html :string) :Promise<string> {
+    interface InlineFile {
+      type      :"html"|"include"
+      filename  :string
+      mimeType  :string
+      index     :number
+      params    :Record<string,string[]>
+      loadp     :Promise<void>
+      assetInfo :AssetInfo|null  // non-null when loadp is loaded
+      loadErr   :Error|null  // non-null on load error (assetInfo will be null)
+
+      // defined for type=="html"
+      tagname   :string
+      prefix    :string
+      suffix    :string
+    }
+
+    const re = /<([^\s>]+)([^>]+)src=(?:"([^"]+)"|'([^']+)')([^>]*)>|<\?\s*include\s+(?:"([^"]+)"|'([^']+)')\s*\?>/mig
+    const reGroupCount = 7  // used for index of "index" in args to replace callback
+
+    // Find
+    let inlineFiles :InlineFile[] = []  // indexed by character offset in html
+    let errors :string[] = []  // error messages indexed by character offset in html
+    let htmlInFileDir = dirname(this.htmlInFile)
+    html.replace(re, (substr :string, ...m :any[]) => {
+      let f = {
+        index: m[reGroupCount],
+        params: {},
+        mimeType: "",
+      } as InlineFile
+      if (m[0]) {
+        let srcval = m[2] || m[3]
+        if (srcval.indexOf(":") != -1) {
+          // skip URLs
+          return substr
+        }
+        f.type = "html"
+        f.filename = pjoin(htmlInFileDir, srcval)
+        f.tagname = m[0].toLowerCase()
+        f.prefix = "<" + m[0] + m[1]
+        f.suffix = m[4].trimRight() + ">"
+      } else {
+        // <?include ... ?>
+        let srcval = m[5]
+        if (srcval.indexOf(":") != -1) {
+          // URLs not supported in ?include?
+          let error = `invalid file path`
+          console.error(
+            `error in ${rpath(this.htmlInFile)}: ${error} in directive: ${substr} -- ignoring`
+          )
+          errors[f.index] = error
+          return ""
+        }
+        f.type = "include"
+        f.filename = pjoin(htmlInFileDir, m[5])
+      }
+      inlineFiles[f.index] = f
+      return substr
+    })
+
+    if (inlineFiles.length == 0) {
+      // nothing found -- nothing to do
+      return html
+    }
+
+    // Load data files
+    let fileLoaders = new Map<string,Promise<AssetInfo>>() // filename => AssetInfo
+    let assetBundler = new AssetBundler()
+
+    for (let k in inlineFiles) {
+      let f = inlineFiles[k]
+      // parse filename and update f
+      let [filename, mimeType, queryString] = assetBundler.parseFilename(f.filename)
+      f.params = parseQueryString(queryString)
+      f.filename = filename
+      f.mimeType = mimeType || ""
+
+      // start loading file
+      let loadp = fileLoaders.get(filename)
+      if (!loadp) {
+        loadp = assetBundler.loadAssetInfo(filename, f.mimeType)
+        fileLoaders.set(filename, loadp)
+      }
+      f.loadp = loadp.then(assetInfo => {
+        f.assetInfo = assetInfo
+      }).catch(err => {
+        let errmsg = String(err).replace(
+          filename,
+          Path.relative(dirname(this.htmlInFile), filename)
+        )
+        console.error(`error in ${rpath(this.htmlInFile)}: ${errmsg}`)
+        f.loadErr = err
+      })
+    }
+
+    // await file loaders, ignoring errors
+    await Promise.all(Array.from(fileLoaders.values()).map(p => p.catch(err => {})))
+
+    // Replace in html
+    html = html.replace(re, (substr :string, ...m :any[]) => {
+      let index = m[reGroupCount]
+      let f = inlineFiles[index]
+      if (!f) {
+        let error = errors[index]
+        if (error) {
+          return `<!--${substr.replace(/^<\?|\?>$/g, "").trim()} [error: ${error}] -->`
+        }
+        // unmodified
+        return substr
+      }
+
+      if (!f.assetInfo) {
+        return substr
+      }
+
+      if (f.type == "html") {
+        // Note: f.tagname is lower-cased
+
+        if (f.tagname == "script") {
+          // special case for <script src="foo.js"></script> -> <script>...</script>
+          let s = f.prefix.trim() + (f.suffix == ">" ? ">" : " " + f.suffix.trimLeft())
+          let text = f.assetInfo.getTextData()
+          if (s.endsWith("/>")) {
+            // <script src="foo.js"/> -> <script>...</script>
+            s = s.substr(0, s.length - 2) + ">" + text + "</script>"
+          } else {
+            s += text
+          }
+          return s
+        }
+
+        const sizeTagNames = {"svg":1,"img":1}
+        let s = f.prefix + `src='${f.assetInfo!.url}'`
+        if (f.tagname in sizeTagNames && typeof f.assetInfo.attrs.width == "number") {
+          let width = f.assetInfo.attrs.width as number
+          let height = f.assetInfo.attrs.height as number
+          if (width > 0 && height > 0) {
+            let wm = substr.match(/width=(?:"([^"]+)"|'([^"]+)')/i)
+            let hm = substr.match(/height=(?:"([^"]+)"|'([^"]+)')/i)
+            if (wm && !hm) {
+              // width set but not height -- set height based on width and aspect ratio
+              let w = parseInt(wm[1] || wm[2])
+              if (!isNaN(w) && w > 0)  {
+                s += ` height="${(w * (height / width)).toFixed(0)}" `
+              }
+            } else if (!wm && hm) {
+              // height set but not width -- set width based on height and aspect ratio
+              let h = parseInt(hm[1] || hm[2])
+              if (!isNaN(h) && h > 0)  {
+                s += ` width="${(h * (width / height)).toFixed(0)}" `
+              }
+            } else if (!wm && !hm) {
+              // set width & height
+              s += ` width="${width}" height="${height}" `
+            }
+          }
+        }
+        return s + f.suffix
+      }
+
+      let asType = "as" in f.params ? (f.params["as"][0]||"").toLowerCase() : ""
+      if (asType == "bytearray") {
+        return Array.from(f.assetInfo.getData()).join(",")
+      }
+      let text = f.assetInfo.getTextData()
+      if (asType == "jsobj") {
+        return JSON.stringify(Object.assign({
+          mimeType: f.assetInfo.mimeType,
+        }, f.assetInfo.attrs), null, 2)
+      }
+      return text
+    })
+
+    return html
   }
 
 

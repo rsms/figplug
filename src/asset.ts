@@ -51,6 +51,38 @@ function getSvgo() :Svgo {
 }
 
 
+export class AssetInfo {
+  // one of these are set, depending on encoding
+  b64data   :string = ""
+  textData  :string = ""
+
+  urlPrefix :string = ""
+  mimeType  :string = ""
+
+  // file-type dependent attributes, like width and height for images
+  attrs :{[key:string]:any} = {}
+
+  // cache
+  _url :string = ""
+
+  get url() :string {
+    if (!this._url) {
+      this._url = this.urlPrefix + this.b64data
+    }
+    return this._url
+  }
+
+  getTextData() :string {
+    return this.textData || this.getData().toString("utf8")
+  }
+
+  getData() :Buffer {
+    return this.textData ? Buffer.from(this.textData, "utf8")
+                         : Buffer.from(this.b64data, "base64")
+  }
+}
+
+
 export class AssetBundler {
   mimeTypes = new Map([
     ['.jpg',  'image/jpeg'],
@@ -228,23 +260,10 @@ export class AssetBundler {
           )
         }
 
-        let mimeType = a.mimeTypes.get(ext.toLowerCase())
-
-        let meta = ""
+        let [id2, mimeType, meta] = a.parseFilename(id)
+        id = id2
         if (!mimeType) {
-          if (id.indexOf("?") != -1) {
-            let file
-            ;[file, meta] = a.extractPathQueryString(id)
-            if (meta) {
-              ext = Path.extname(file)
-              if (mimeType = a.mimeTypes.get(ext.toLowerCase())) {
-                id = file
-              }
-            }
-          }
-          if (!mimeType) {
-            return Promise.resolve(null)
-          }
+          return Promise.resolve(null)
         }
 
         this.addWatchFile(id)
@@ -260,10 +279,23 @@ export class AssetBundler {
           return a.readAsJSXModule(id, jsid)
         }
 
-        return a.readAsDataURL(mimeType, id, jsid)
+        return a.loadAssetInfo(id, mimeType).then(obj =>
+          `const asset_${jsid} = ${JSON.stringify(obj)};\n` +
+          `export default asset_${jsid};`
+        )
       }
     })
   } // getRollupPlugin
+
+
+  // parseFilename returns [filename, mimeType?, queryString]
+  parseFilename(filename :string) :[string, string|undefined, string] {
+    const a = this
+    let [fn, queryString] = a.extractPathQueryString(filename)
+    let ext = Path.extname(fn)
+    let mimeType = a.mimeTypes.get(ext.toLowerCase())
+    return [fn, mimeType, queryString]
+  }
 
 
   // readAsJSX reads a resource which contents is valid JSX, like an SVG,
@@ -291,77 +323,76 @@ export class AssetBundler {
   }
 
 
-  async readAsDataURL(mimeType :string, path :string, jsid :string) :Promise<string> {
-    interface AssetInfo {
-      url :string
-      width? :int
-      height? :int
-    }
-    let obj :AssetInfo = {
-      url: "",
-    }
+  async loadAssetInfo(path :string, mimeType? :string) :Promise<AssetInfo> {
+    let obj = new AssetInfo()
 
-    if (this.mimeTypeIsImage(mimeType)) {
-      obj.width = 0
-      obj.height = 0
-    }
+    if (mimeType) {
+      obj.mimeType = mimeType
 
-    if (mimeType == "image/gif") {
-      let data = await readfile(path, "base64")
-      let head = Buffer.from(data.substr(0,16), "base64")
-      try {
-        let info = gifInfoBuf(head)
-        Object.assign(obj, info)
-      } catch(err) {
-        console.error(`${path}: not a GIF image (${err})`)
-      }
-      obj.url = `data:${mimeType};base64,${data}`
+      if (mimeType == "image/gif") {
+        let data = await readfile(path, "base64")
+        let head = Buffer.from(data.substr(0,16), "base64")
+        try {
+          obj.attrs = gifInfoBuf(head)
+        } catch(err) {
+          console.error(`${path}: not a GIF image (${err})`)
+          obj.attrs.width = 0
+          obj.attrs.height = 0
+        }
+        obj.urlPrefix = `data:${mimeType};base64,`
+        obj.b64data = data
 
-    } else if (mimeType == "image/jpeg") {
-      let data = await readfile(path)
-      try {
-        let info = jpegInfoBuf(data)
-        Object.assign(obj, info)
-      } catch(err) {
-        console.error(`${path}: not a JPEG image (${err})`)
-      }
-      obj.url = `data:${mimeType};base64,${data.toString("base64")}`
+      } else if (mimeType == "image/jpeg") {
+        let data = await readfile(path)
+        try {
+          obj.attrs = jpegInfoBuf(data)
+        } catch(err) {
+          console.error(`${path}: not a JPEG image (${err})`)
+          obj.attrs.width = 0
+          obj.attrs.height = 0
+        }
+        obj.urlPrefix = `data:${mimeType};base64,`
+        obj.b64data = data.toString("base64")
 
-    } else if (this.mimeTypeIsText(mimeType)) {
-      // for text types, attempt text encoding
-      let data = await readfile(path, "utf8")
+      } else if (this.mimeTypeIsText(mimeType)) {
+        // for text types, attempt text encoding
+        let data = await readfile(path, "utf8")
 
-      if (mimeType == "image/svg+xml") {
-        let res = await getSvgo().optimize(data, {path})
-        if (res.data.match(/^[^\r\n\t]+$/)) {
-          let info = res.info as {[k:string]:string}
-          if (info.width) {
-            obj.width = parseInt(info.width)
-            if (isNaN(obj.width)) {
-              obj.width = 0
+        if (mimeType == "image/svg+xml") {
+          let res = await getSvgo().optimize(data, {path})
+          if (res.data.match(/^[^\r\n\t]+$/)) {
+            obj.attrs = res.info as {[k:string]:any}
+            if (obj.attrs.width) {
+              obj.attrs.width = parseInt(obj.attrs.width)
+              if (isNaN(obj.attrs.width)) {
+                obj.attrs.width = 0
+              }
+            } else {
+              obj.attrs.width = 0
             }
-          }
-          if (info.height) {
-            obj.height = parseInt(info.height)
-            if (isNaN(obj.height)) {
-              obj.height = 0
+            if (obj.attrs.height) {
+              obj.attrs.height = parseInt(obj.attrs.height)
+              if (isNaN(obj.attrs.height)) {
+                obj.attrs.height = 0
+              }
+            } else {
+              obj.attrs.height = 0
             }
+            obj.urlPrefix = `data:${mimeType};utf8,`
+            obj.textData = res.data
           }
-          obj.url = `data:${mimeType};utf8,${res.data}`
         }
       }
     }
 
-    if (obj.url == "") {
+    if (!obj.urlPrefix) {
       // fallback to base-64 encoding the data
       let data = await readfile(path, "base64")
-      obj.url = `data:${mimeType};base64,${data}`
+      obj.urlPrefix = `data:${mimeType};base64,`
+      obj.b64data = data
     }
 
-    return (
-      `const asset_${jsid} = ${JSON.stringify(obj)};\n` +
-      `export default asset_${jsid};`
-    )
+    return obj
   }
 
 }
