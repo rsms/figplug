@@ -10,7 +10,7 @@ import { checkForNewVersion, VersionCheckResult } from "./check-version"
 
 
 async function buildPlugin(manifest :Manifest, c :BuildCtx) {
-  let p = new PluginTarget(manifest, c.outdir)
+  let p = new PluginTarget(manifest, c.outdir, c.libs, c.uilibs)
   return p.build(c)
 }
 
@@ -224,7 +224,9 @@ async function main_build(argv :string[], baseopt: {[k:string]:any}={}) {
     ["w",       "Watch sources for changes and rebuild incrementally"],
     ["g",       "Generate debug code (assertions and DEBUG branches)."],
     ["O",       "Generate optimized code."],
-    ["lib",     "Include a global library in plugin code. " +
+    ["lib",     "Include a global JS library in plugin code. " +
+                "Can be set multiple times.", "<file>:string[]"],
+    ["uilib",   "Include a global JS library in UI code. " +
                 "Can be set multiple times.", "<file>:string[]"],
     ["clean",   "Force rebuilding of everything, ignoring cache. Implied with -O."],
     ["nomin",   "Do not minify or mangle optimized code when -O is enabled."],
@@ -245,6 +247,7 @@ async function main_build(argv :string[], baseopt: {[k:string]:any}={}) {
   c.nomin    = opt.nomin   || c.nomin
   c.outdir   = opt.o || opt.outdir || c.outdir
   c.libs     = opt.lib || []
+  c.uilibs   = opt.uilib || []
 
   // set manifest locations based on CLI arguments
   let manifestPaths = unique(

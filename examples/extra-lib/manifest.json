@@ -2,7 +2,10 @@
   "api": "1.0.0",
   "name": "extra-lib",
   "main": "plugin.ts",
+  "ui":   "ui.ts",
   "figplug": {
-    "libs": ["libone", "libtwo", "libthree"]
+    // libraries
+    "libs":   ["libone", "libtwo", "libthree"],
+    "uilibs": ["uilib2", "libone"]
   }
 }

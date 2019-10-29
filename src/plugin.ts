@@ -8,7 +8,13 @@ import { readfile, writefile, isFile } from './fs'
 import postcssNesting from 'postcss-nesting'
 import { Manifest } from './manifest'
 import * as Path from 'path'
-import { join as pjoin, dirname, basename, parse as parsePath } from 'path'
+import {
+  join as pjoin,
+  dirname,
+  basename,
+  parse as parsePath,
+  resolve as presolve,
+} from 'path'
 import { AssetBundler, AssetInfo } from './asset'
 
 
@@ -125,28 +131,38 @@ async function getUserLib(filename :string, basedir :string, cachedir :string) :
 }
 
 
+interface UserLibSpec {
+  fn      :string   // possibly-relative filename
+  basedir :string   // absolute base dir
+}
+
+
 export class PluginTarget {
   readonly manifest      :Manifest
   readonly basedir       :string  // root of plugin; dirname of manifest.json
   readonly srcdir        :string
   readonly outdir        :string
   readonly name          :string  // e.g. "Foo Bar" from manifest.props.name
-
-  // plugin product (mutable as build() may swap around)
-  pluginProduct     :Product
-  origPluginProduct :Product|null = null  // non-null when modified by build()
-
+  readonly pluginProduct :Product
   readonly uiProduct     :Product|null = null
+
+  // user lib specs provided with constructor and manifest
+  readonly pUserLibs     :UserLibSpec[] = []
+  readonly uiUserLibs    :UserLibSpec[] = []
+  needLoadUserLibs       :bool = false  // true when loadUserLibs needs to be called by build()
+
+  // output files
   readonly pluginOutFile :string
   readonly htmlOutFile   :string = "" // non-empty when uiProduct is set
   readonly htmlInFile    :string = "" // non-empty when uiProduct is set
   readonly cssInFile     :string = "" // non-empty when uiProduct is set
 
-  // incremental build promise of plugin
+  // incremental build promises
   pluginIncrBuildProcess :IncrementalBuildProcess|null = null
+  uiIncrBuildProcess     :IncrementalBuildProcess|null = null
 
 
-  constructor(manifest :Manifest, outdir :string) {
+  constructor(manifest :Manifest, outdir :string, pUserLibs :string[], uiUserLibs :string[]) {
     this.manifest = manifest
     this.basedir = dirname(manifest.file)
 
@@ -160,6 +176,9 @@ export class PluginTarget {
     // setup libs
     let figplugLib = getFigplugLib()
     let figmaPluginLib = getFigmaPluginLib(manifest.props.api)
+
+    // setup user libs
+    this.initUserLibs(pUserLibs, uiUserLibs)
 
     // setup plugin product
     this.pluginProduct = new Product({
@@ -196,36 +215,93 @@ export class PluginTarget {
   }
 
 
+  initUserLibs(pUserLibs :string[], uiUserLibs :string[]) {
+    let mp = this.manifest.props
+
+    // sets used to avoid duplicate entries. Values are absolute paths.
+    let seenp  = new Set<string>()
+    let seenui = new Set<string>()
+
+    let add = (seen :Set<string>, v :UserLibSpec[], basedir :string, fn :string) => {
+      let path = presolve(basedir, fn)
+      if (!seen.has(path)) {
+        seen.add(path)
+        v.push({ fn, basedir })
+      }
+    }
+
+    // Add libs from config/CLI.
+    // libs defined on command line are relative to current working directory
+    let basedir = process.cwd()
+    for (let fn of pUserLibs) {
+      add(seenp, this.pUserLibs, basedir, fn)
+    }
+    if (mp.ui) for (let fn of uiUserLibs) {
+      add(seenui, this.uiUserLibs, basedir, fn)
+    }
+
+    // Add libs from manifest
+    if (mp.figplug) {
+      let basedir = this.srcdir  // plugin libs defined in manifest are relative to srcdir
+      if (mp.figplug.libs) for (let fn of mp.figplug.libs) {
+        add(seenp, this.pUserLibs, basedir, fn)
+      }
+      if (mp.ui && mp.figplug.uilibs) for (let fn of mp.figplug.uilibs) {
+        add(seenui, this.uiUserLibs, basedir, fn)
+      }
+    }
+
+    // set load flag if there are any user libs
+    this.needLoadUserLibs = (this.pUserLibs.length + this.uiUserLibs.length) > 0
+  }
+
+
+  async loadUserLibs(c :BuildCtx) :Promise<void> {
+    assert(this.needLoadUserLibs)
+    this.needLoadUserLibs = false
+
+    // dedup libs to make sure we only have once UserLib instance per actual lib file
+    let loadLibs = new Map<string,UserLibSpec>()
+    let libPaths :string[] = []
+    for (let ls of this.pUserLibs.concat(this.uiUserLibs)) {
+      let path = presolve(ls.basedir, ls.fn)
+      loadLibs.set(path, ls)
+      libPaths.push(path)
+    }
+
+    // load and await all
+    if (c.verbose2) {
+      print(`[${this.name}] load libs:\n  ` + Array.from(loadLibs.keys()).join("\n  "))
+    }
+    let loadedLibs = new Map<string,UserLib>()
+    await Promise.all(Array.from(loadLibs).map(([path, ls]) =>
+      getUserLib(ls.fn, ls.basedir, this.outdir).then(lib => {
+        loadedLibs.set(path, lib)
+      })
+    ))
+
+    // add libs to products
+    let libs = libPaths.map(path => loadedLibs.get(path)!)
+    let i = 0
+    for (; i < this.pUserLibs.length; i++) {
+      if (c.verbose) { print(`add plugin ${libs[i]}`) }
+      this.pluginProduct.libs.push(libs[i])
+    }
+    // remainder of libs are ui libs
+    for (; i < libs.length; i++) {
+      assert(this.uiProduct)
+      if (c.verbose) { print(`add UI ${libs[i]}`) }
+      this.uiProduct!.libs.push(libs[i])
+    }
+  }
+
+
   async build(c :BuildCtx, onbuild? :()=>void) :Promise<void> {
     // TODO: if there's a package.json file in this.basedir then read the
     // version from it and assign it to this.version
 
-    // Did a previous build stuff away an unmodified version of plugin product?
-    if (this.origPluginProduct) {
-      this.pluginProduct = this.origPluginProduct
-      this.origPluginProduct = null
-    }
-
-    // Add extra libs
-    let userLibs :{fn:string,basedir:string}[] = c.libs.map(fn => {
-      // libs defined on command line are relative to current working directory
-      return { fn, basedir: process.cwd() }
-    })
-    if (this.manifest.props.figplug && this.manifest.props.figplug.libs) {
-      for (let fn of this.manifest.props.figplug.libs) {
-        // libs defined in manifest are relative to srcdir
-        userLibs.push({ fn, basedir: this.srcdir })
-      }
-    }
-    if (userLibs.length > 0) {
-      this.origPluginProduct = this.pluginProduct
-      this.pluginProduct = this.pluginProduct.copy()
-      let libs = await Promise.all(
-        userLibs.map(({fn, basedir}) => getUserLib(fn, basedir, this.outdir))
-      )
-      for (let lib of libs) {
-        this.pluginProduct.libs.push(lib)
-      }
+    if (this.needLoadUserLibs) {
+      await this.loadUserLibs(c)
     }
 
     // sanity-check input and output files
@@ -283,7 +359,7 @@ export class PluginTarget {
     // TODO: return cancelable promise, like we do for
     // Product.buildIncrementally.
 
-    if (this.pluginIncrBuildProcess) {
+    if (this.pluginIncrBuildProcess || this.uiIncrBuildProcess) {
       throw new Error(`already has incr build process`)
     }
 
@@ -325,26 +401,36 @@ export class PluginTarget {
     }
 
     // Watch user libraries
-    let isRestarting = false
+    let isRestartingPluginBuild = false
     const rebuildPlugin = () => {
-      if (this.pluginIncrBuildProcess && !isRestarting) {
-        isRestarting = true
-        this.pluginIncrBuildProcess.restart().then(() => {
-          isRestarting = false
-        })
+      if (this.pluginIncrBuildProcess && !isRestartingPluginBuild) {
+        isRestartingPluginBuild = true
+        this.pluginIncrBuildProcess.restart().then(() => { isRestartingPluginBuild = false })
       }
     }
     for (let lib of this.pluginProduct.libs) {
       if (lib instanceof UserLib) {
-        if (lib.jsfile) {
-          watchFile(lib.jsfile, {}, rebuildPlugin)
+        if (lib.jsfile) { watchFile(lib.jsfile, {}, rebuildPlugin) }
+        if (lib.dfile) {  watchFile(lib.dfile, {}, rebuildPlugin) }
+      }
+    }
+    if (this.uiProduct) {
+      let isRestartingUIBuild = false
+      const rebuildUI = () => {
+        if (this.uiIncrBuildProcess && !isRestartingUIBuild) {
+          isRestartingUIBuild = true
+          this.uiIncrBuildProcess.restart().then(() => { isRestartingUIBuild = false })
         }
-        if (lib.dfile) {
-          watchFile(lib.dfile, {}, rebuildPlugin)
+      }
+      for (let lib of this.uiProduct.libs) {
+        if (lib instanceof UserLib) {
+          if (lib.jsfile) { watchFile(lib.jsfile, {}, rebuildUI) }
+          if (lib.dfile) {  watchFile(lib.dfile, {}, rebuildUI) }
         }
       }
     }
 
+    // have UI?
     if (this.uiProduct || this.htmlInFile) {
       let buildCounter = 0
       let onstart = () => {
@@ -362,28 +448,27 @@ export class PluginTarget {
 
       if (this.uiProduct) {
         // TS UI
-        return Promise.all([
-          this.pluginIncrBuildProcess,
-          this.uiProduct.buildIncrementally(
-            c,
-            onstart,
-            () => buildHtml().then(onend),
-          ),
-        ]).then(() => {})
+        this.uiIncrBuildProcess = this.uiProduct.buildIncrementally(
+          c,
+          onstart,
+          () => buildHtml().then(onend),
+        )
+        return Promise.all([ this.pluginIncrBuildProcess, this.uiIncrBuildProcess ]).then(() => {})
       }
 
       if (this.htmlInFile) {
         // HTML-only UI
         onStartBuildHtml = onstart
-        return Promise.all([
-          this.pluginIncrBuildProcess,
-          buildHtml().then(onend),
-        ]).then(() => {})
+        return Promise.all([ this.pluginIncrBuildProcess, buildHtml().then(onend) ]).then(() => {})
       }
+    } else {
+      // no UI
+      return this.pluginIncrBuildProcess = this.pluginProduct.buildIncrementally(
+        c,
+        onStartBuild,
+        onEndBuild,
+      )
     }
-
-    // no UI
-    return this.pluginProduct.buildIncrementally(c, onStartBuild, onEndBuild)
   }
 
 

@@ -4,7 +4,8 @@ import { jsonparse } from './util'
 import { join as pjoin } from 'path'
 
 export interface ManifestFigPlugProps {
-  libs? :string[]
+  libs?   :string[]
+  uilibs? :string[]
 }
 
 export interface ManifestProps {
