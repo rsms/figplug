@@ -1,4 +1,13 @@
 <h2>Rectangle Creator</h2>
+
+<!-- Examples of using <?include?> -->
+<img src="assets/logo.svg" alt="hello">
+<?include "assets/logo.svg" ?>
+<script>
+const readmeData = [<?include "README.md?as=bytearray" ?>]
+const logoInfo = <?include "assets/logo.svg?as=jsobj" ?>
+</script>
+
 <p>Count: <input id="count" value="5"></p>
 <button id="create">Create</button>
 <button id="cancel">Cancel</button>
