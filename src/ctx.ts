@@ -13,6 +13,7 @@ export class BuildCtx {
   outdir   = ""  // empty means "infer from source"
   libs   :string[] = []  // filenames
   uilibs :string[] = []  // filenames
+  noGenManifest = false  // do not generate manifest.json
 
   constructor(props? :Partial<BuildCtx>) {
     if (props) {

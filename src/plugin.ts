@@ -142,6 +142,7 @@ export class PluginTarget {
   readonly basedir       :string  // root of plugin; dirname of manifest.json
   readonly srcdir        :string
   readonly outdir        :string
+  readonly cachedir      :string  // == pjoin(this.outdir, ".figplug-cache")
   readonly name          :string  // e.g. "Foo Bar" from manifest.props.name
   readonly pluginProduct :Product
   readonly uiProduct     :Product|null = null
@@ -170,6 +171,7 @@ export class PluginTarget {
 
     this.srcdir = dirname(pluginSrcFile)
     this.outdir = outdir = outdir || pjoin(this.srcdir, "build")
+    this.cachedir = pjoin(this.outdir, ".figplug-cache")
     this.name = manifest.props.name
     this.pluginOutFile = pjoin(outdir, parsePath(pluginSrcFile).name + '.js')
 
@@ -182,11 +184,12 @@ export class PluginTarget {
 
     // setup plugin product
     this.pluginProduct = new Product({
-      version: "0",
-      entry:   pluginSrcFile,
-      outfile: this.pluginOutFile,
-      basedir: this.basedir,
-      libs:    [ figplugLib, figmaPluginLib ],
+      version:  "0",
+      entry:    pluginSrcFile,
+      outfile:  this.pluginOutFile,
+      basedir:  this.basedir,
+      cachedir: this.cachedir,
+      libs:     [ figplugLib, figmaPluginLib ],
     })
 
     // setup ui product
@@ -203,12 +206,13 @@ export class PluginTarget {
 
       if (!uisrcFile.endsWith(".html")) {
         this.uiProduct = new Product({
-          version: this.pluginProduct.version,
-          entry:   uisrcFile,
-          outfile: pjoin(outdir, '.ui.js'),
-          basedir: this.basedir,
-          libs:    [ figplugLib, domTSLib ],
-          jsx:     (ext == ".tsx" || ext == ".jsx") ? "react" : "",
+          version:  this.pluginProduct.version,
+          entry:    uisrcFile,
+          outfile:  pjoin(outdir, '.ui.js'),
+          basedir:  this.basedir,
+          cachedir: this.cachedir,
+          libs:     [ figplugLib, domTSLib ],
+          jsx:      (ext == ".tsx" || ext == ".jsx") ? "react" : "",
         })
       } // else: HTML-only UI
     }
@@ -275,7 +279,7 @@ export class PluginTarget {
     }
     let loadedLibs = new Map<string,UserLib>()
     await Promise.all(Array.from(loadLibs).map(([path, ls]) =>
-      getUserLib(ls.fn, ls.basedir, this.outdir).then(lib => {
+      getUserLib(ls.fn, ls.basedir, this.cachedir).then(lib => {
         loadedLibs.set(path, lib)
       })
     ))
@@ -798,6 +802,11 @@ export class PluginTarget {
 
 
   writeManifestFile(c :BuildCtx, manifest :Manifest) :Promise<void> {
+    if (c.noGenManifest) {
+      c.verbose2 && print(`[${this.name}] skip writing manifest.json`)
+      return Promise.resolve()
+    }
+
     let props = manifest.propMap()
 
     // override source file names

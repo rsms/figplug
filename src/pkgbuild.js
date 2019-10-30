@@ -125,7 +125,7 @@ export class Lib extends LibBase {
       // attempt to load from precompiled file
       let cachefile = pjoin(
         this.cachedir,
-        (c.debug ? ".debug-" : ".opt-") +
+        (c.debug ? "debug-" : "opt-") +
         this.jsfile.replace(/[^A-Za-z0-9_\-\.]+/g, '-')
       )
 
@@ -247,6 +247,7 @@ export class Product {
   constructor(props /*:ProductProps*/) {
     this.outfile = Path.resolve(props.outfile)
     this.outdir = dirname(this.outfile)
+    this.cachedir = props.cachedir || this.outdir
     this.name = props.name || rpath(this.outfile)
     this.version = props.version || '0.0.0'
     this.basedir = props.basedir || "."
@@ -743,7 +744,7 @@ export class Product {
         ),
 
       },
-      cacheRoot: pjoin(this.outdir, '.tscache-' + (c.debug ? 'g' : 'o')),
+      cacheRoot: pjoin(this.cachedir, c.debug ? 'debug-ts-cache' : 'opt-ts-cache'),
       clean: c.clean,
 
       rollupCommonJSResolveHack: true,

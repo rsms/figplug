@@ -20,6 +20,7 @@ export class ProductProps {
   version  :string
   entry    :string  // entry source file
   outfile  :string  // output js file
+  cachedir :string  // cache dir for build intermediates like .tscache
   basedir  :string  // base directory where tsconfig is expected to be found
 
   mapfile  :string  // output map file. default to {outfile}.map
