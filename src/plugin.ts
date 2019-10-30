@@ -131,6 +131,12 @@ async function getUserLib(filename :string, basedir :string, cachedir :string) :
 }
 
 
+function stripFileExt(filename :string) :string {
+  let ext = Path.extname(filename)
+  return ext ? filename.substr(0, filename.length - ext.length) : filename
+}
+
+
 interface UserLibSpec {
   fn      :string   // possibly-relative filename
   basedir :string   // absolute base dir
@@ -169,11 +175,13 @@ export class PluginTarget {
 
     let pluginSrcFile = pjoin(this.basedir, manifest.props.main)
 
+    let customModuleId = manifest.props.figplug && manifest.props.figplug.moduleId
+
     this.srcdir = dirname(pluginSrcFile)
     this.outdir = outdir = outdir || pjoin(this.srcdir, "build")
     this.cachedir = pjoin(this.outdir, ".figplug-cache")
     this.name = manifest.props.name
-    this.pluginOutFile = pjoin(outdir, parsePath(pluginSrcFile).name + '.js')
+    this.pluginOutFile = pjoin(outdir, (customModuleId || parsePath(pluginSrcFile).name) + '.js')
 
     // setup libs
     let figplugLib = getFigplugLib()
@@ -182,9 +190,12 @@ export class PluginTarget {
     // setup user libs
     this.initUserLibs(pUserLibs, uiUserLibs)
 
+    let moduleId = customModuleId || stripFileExt(manifest.props.main)
+
     // setup plugin product
     this.pluginProduct = new Product({
       version:  "0",
+      id:       moduleId,
       entry:    pluginSrcFile,
       outfile:  this.pluginOutFile,
       basedir:  this.basedir,
@@ -207,6 +218,7 @@ export class PluginTarget {
       if (!uisrcFile.endsWith(".html")) {
         this.uiProduct = new Product({
           version:  this.pluginProduct.version,
+          id:       stripFileExt(manifest.props.ui),
           entry:    uisrcFile,
           outfile:  pjoin(outdir, '.ui.js'),
           basedir:  this.basedir,
@@ -770,6 +782,7 @@ export class PluginTarget {
             }
           }
         }
+
         return s + f.suffix
       }
 

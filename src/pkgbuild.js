@@ -259,6 +259,8 @@ export class Product {
       throw new Error(`invalid targetESVersion value (not a number)`)
     }
 
+    this.id = props.id || props.entry
+
     this.jsx = props.jsx || null
     this.mapfile = props.mapfile || this.outfile + '.map'
 
@@ -824,7 +826,12 @@ export class Product {
 
   async makeOutputConfig(c) {
     const wrapperStart = '(function(exports){\n'
-    const wrapperEnd = '})(typeof exports != "undefined" ? exports : this);\n'
+    const wrapperEnd = (
+      '})(typeof exports != "undefined" ? exports : (' +
+      `typeof global != "undefined" ? global : ` +
+      `typeof self != "undefined" ? self : ` +
+      `this)[${JSON.stringify(this.id)}] = {});\n`
+    )
 
     let outcfg = {
       file: this.outfile,

@@ -17,6 +17,7 @@ export type ConstantDefinitions = { [name :string] : any }
 
 export class ProductProps {
   name     :string
+  id       :string  // derived from entry if not set
   version  :string
   entry    :string  // entry source file
   outfile  :string  // output js file
