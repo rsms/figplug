@@ -67,7 +67,7 @@ export class AssetInfo {
 
   get url() :string {
     if (!this._url) {
-      this._url = this.urlPrefix + this.b64data
+      this._url = this.urlPrefix + (this.textData || this.b64data)
     }
     return this._url
   }
