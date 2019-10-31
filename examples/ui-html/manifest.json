@@ -1,0 +1,10 @@
+{ "api":  "1.0.0",
+  "name": "figplug example: ui-ts-html",
+  "id":   "YOUR_ID_HERE",
+  "main": "plugin.ts",
+  "ui":   "ui.html",
+
+  // by default, the VERSION constant is set from the nearest package.json,
+  // but its value can be explicitly specified like this:
+  "figplug": { "version": "1.2.3" }
+}
