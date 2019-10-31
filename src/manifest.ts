@@ -7,6 +7,7 @@ export interface ManifestFigPlugProps {
   libs?     :string[]
   uilibs?   :string[]
   moduleId? :string
+  version?  :string  // sets VERSION constant; overrides version in package.json
 }
 
 export interface ManifestProps {

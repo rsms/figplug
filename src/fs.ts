@@ -59,6 +59,14 @@ export async function isFile(path :fs.PathLike) :Promise<bool> {
   return false
 }
 
+export async function isDir(path :fs.PathLike) :Promise<bool> {
+  try {
+    let st = await stat(path)
+    return st.isDirectory()
+  } catch(_) {}
+  return false
+}
+
 export function strpath(path :fs.PathLike) :string {
   if (path instanceof URL) {
     if (path.protocol.toLowerCase() != 'file') {

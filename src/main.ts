@@ -4,13 +4,17 @@ import { parseopt, die, prog, FlagSpec } from './cli'
 import { PluginTarget } from './plugin'
 import * as Path from 'path'
 import * as fs from 'fs'
+import { readfile, isDir } from './fs'
 import { BuildCtx } from './ctx'
 import { initPlugin, InitOptions } from './init'
 import { checkForNewVersion, VersionCheckResult } from "./check-version"
 
 
 async function buildPlugin(manifest :Manifest, c :BuildCtx) {
-  let p = new PluginTarget(manifest, c.outdir, c.libs, c.uilibs)
+  if (DEBUG) {
+    Object.freeze(c)
+  }
+  let p = new PluginTarget(manifest, c.outdir, c.libs, c.uilibs, c.version)
   return p.build(c)
 }
 
@@ -269,16 +273,58 @@ async function main_build(argv :string[], baseopt: {[k:string]:any}={}) {
       c2.outdir = outdir
     }
 
-    if (DEBUG) {
-      Object.freeze(c2)
-    }
-
     let manifest = await Manifest.load(path)
+    c2.version = (await findVersion(c2, manifest)) || c2.version
+
     return buildPlugin(manifest, c2)
   })).then(() => {
     process.exit(0)
   })
 }
+
+
+async function findVersion(c :BuildCtx, manifest :Manifest) :Promise<string> {
+  if (manifest.props.figplug && manifest.props.figplug.version) {
+    return manifest.props.figplug.version
+  }
+  // look for package.json
+  let manifestdir = Path.dirname(manifest.file)
+  let srcdir = Path.dirname(Path.resolve(manifestdir, manifest.props.main))
+  let longestUnionPath = (
+    manifestdir.startsWith(srcdir) ? manifestdir :
+    srcdir.startsWith(manifestdir) ? srcdir :
+    ""
+  )
+  let dirs = longestUnionPath ? [ longestUnionPath ] : [ manifestdir, srcdir ]
+  let versionFound = ""
+  await Promise.all(dirs.map(async dir => {
+    let maxdepth = 5
+    while (maxdepth-- && dir != "/" && dir.indexOf(":\\") != 1 && !versionFound) {
+      let packageFile = Path.join(dir, "package.json")
+      let packageJson :{version?:string}|undefined
+      try {
+        packageJson = JSON.parse(await readfile(packageFile, "utf8"))
+        if (packageJson && packageJson.version) {
+          if (!versionFound) {
+            versionFound = packageJson.version
+          }
+          break
+        }
+      } catch (_) {
+        // ignore non-existing, unreadable or unparsable file
+      }
+      // if dir contains VCS dir, stop.
+      if ((await Promise.all([ ".git", ".hg", ".svn" ].map(vcsDir =>
+        isDir(Path.join(dir, vcsDir))
+      ))).some(v => v)) {
+        break
+      }
+      dir = Path.dirname(dir)
+    }
+  }))
+  return versionFound
+}
+
 
 function onError(err :any) {
   if (typeof err != "object" || !(err as any)._wasReported) {

@@ -169,16 +169,22 @@ export class PluginTarget {
   uiIncrBuildProcess     :IncrementalBuildProcess|null = null
 
 
-  constructor(manifest :Manifest, outdir :string, pUserLibs :string[], uiUserLibs :string[]) {
+  constructor(
+    manifest :Manifest,
+    outdir :string,
+    pUserLibs :string[],
+    uiUserLibs :string[],
+    version :string,
+  ) {
     this.manifest = manifest
     this.basedir = dirname(manifest.file)
 
-    let pluginSrcFile = pjoin(this.basedir, manifest.props.main)
+    let pluginSrcFile = presolve(this.basedir, manifest.props.main)
 
     let customModuleId = manifest.props.figplug && manifest.props.figplug.moduleId
 
     this.srcdir = dirname(pluginSrcFile)
-    this.outdir = outdir = outdir || pjoin(this.srcdir, "build")
+    this.outdir = outdir = (outdir || pjoin(this.srcdir, "build"))
     this.cachedir = pjoin(this.outdir, ".figplug-cache")
     this.name = manifest.props.name
     this.pluginOutFile = pjoin(outdir, (customModuleId || parsePath(pluginSrcFile).name) + '.js')
@@ -194,7 +200,7 @@ export class PluginTarget {
 
     // setup plugin product
     this.pluginProduct = new Product({
-      version:  "0",
+      version,
       id:       moduleId,
       entry:    pluginSrcFile,
       outfile:  this.pluginOutFile,
