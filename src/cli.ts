@@ -99,7 +99,6 @@ export function parseopt(argv :string[], usage :Usage, ...flags :FlagSpec[]) :[O
         console.error(`unknown option -${arg} (see ${prog} -help)`)
         process.exit(1)
       }
-      break
     }
 
     // save option
@@ -114,7 +113,6 @@ export function parseopt(argv :string[], usage :Usage, ...flags :FlagSpec[]) :[O
         } else {
           console.error(`missing value for option -${arg} (see ${prog} -help)`)
           process.exit(1)
-          break
         }
       } // else -k=v
       try {
