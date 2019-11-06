@@ -436,10 +436,8 @@ export class Product {
     var wopt = {} // options to rollup.watch
 
     const configure = async () => {
-      let [incfg, outcfg] = await Promise.all([
-        p.makeInputConfig(c),
-        p.makeOutputConfig(c),
-      ])
+      let incfg = await p.makeInputConfig(c)
+      let outcfg = await p.makeOutputConfig(c)
       wopt = {
         ...incfg,
         output: outcfg,
@@ -649,12 +647,33 @@ export class Product {
   async makeInputConfig(c) {
     let userTsConfigFile = pjoin(this.basedir, 'tsconfig.json')
     let userTsConfig = {}, userTsCompilerOptions = {}
-    let estarget = this.getTSTargetID()
+    let estarget = ""
     let include = []
-    let stdlibs = [ estarget ]
+    let stdlibs = []
     try {
       userTsConfig = JSON.parse(await readfile(userTsConfigFile, 'utf8'))
       userTsCompilerOptions = userTsConfig.compilerOptions || {}
+
+      // if user has set target in tsconfig, overwrite targetESVersion with its value
+      estarget = userTsCompilerOptions.target || ""
+      if (estarget) switch (estarget.toLowerCase()) {
+        case "esnext": this.targetESVersion = 0; break
+        case "es3":    this.targetESVersion = 3; break
+        case "es5":    this.targetESVersion = 5; break
+        case "es6":    this.targetESVersion = 2015; break
+        case "es7":    this.targetESVersion = 2016; break
+        default: {
+          if (estarget.length == 6 && estarget.startsWith("es")) {
+            let n = parseInt(estarget.substr(2))
+            if (!isNaN(n)) {
+              this.targetESVersion = n
+              break
+            }
+          }
+          console.warn(`[figplug] failed to parse tsconfig.compilerOptions.target`, target)
+        }
+      }
+
       if (userTsConfig.include && Array.isArray(userTsConfig.include)) {
         include = userTsConfig.include.slice()
       }
@@ -670,6 +689,11 @@ export class Product {
       // template tsconfig file in lib.
       userTsConfigFile = pjoin(figplugDir, "lib", "template-tsconfig.json")
     }
+
+    if (!estarget) {
+      estarget = this.getTSTargetID()
+    }
+    stdlibs.push(estarget)
 
     // add libs d files
     for (let lib of this.libs) {

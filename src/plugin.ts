@@ -207,6 +207,7 @@ export class PluginTarget {
       basedir:  this.basedir,
       cachedir: this.cachedir,
       libs:     [ figplugLib, figmaPluginLib ],
+      targetESVersion: 8, // Figma's JS VM supports ES2017
     })
 
     // setup ui product
@@ -231,6 +232,7 @@ export class PluginTarget {
           cachedir: this.cachedir,
           libs:     [ figplugLib, domTSLib ],
           jsx:      (ext == ".tsx" || ext == ".jsx") ? "react" : "",
+          targetESVersion: this.pluginProduct.targetESVersion,
         })
       } // else: HTML-only UI
     }
