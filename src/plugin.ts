@@ -227,7 +227,7 @@ export class PluginTarget {
           version:  this.pluginProduct.version,
           id:       stripFileExt(manifest.props.ui),
           entry:    uisrcFile,
-          outfile:  pjoin(outdir, '.ui.js'),
+          outfile:  pjoin(this.cachedir, '.ui.js'),
           basedir:  this.basedir,
           cachedir: this.cachedir,
           libs:     [ figplugLib, domTSLib ],
