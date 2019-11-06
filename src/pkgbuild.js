@@ -7,9 +7,9 @@ import nodeResolvePlugin from 'rollup-plugin-node-resolve'
 import * as Path from 'path'
 import { join as pjoin, relative as relpath, dirname, basename } from 'path'
 import { readFileSync } from 'fs'
-import { writefile, readfile, stat, mkdir } from './fs'
-import { AssetBundler } from './asset'
-import { figplugDir } from './ctx'
+import { writefile, readfile, stat, mkdir } from './fs.ts'
+import { AssetBundler } from './asset.ts'
+import { figplugDir } from './ctx.ts'
 import {
   inlineSourceMap,
   rpath,
@@ -17,8 +17,8 @@ import {
   fmtByteSize,
   strUTF8Size,
   fmtDuration,
-} from './util'
-import * as strings from "./strings"
+} from './util.ts'
+import * as strings from "./strings.ts"
 
 
 // TODO: port this code to typescript
