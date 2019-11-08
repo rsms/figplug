@@ -67,8 +67,8 @@ export class Product extends ProductProps {
   async build(c :BuildCtx) :Promise<void>
   buildIncrementally(
     c :BuildCtx,
-    onStartBuild? :(p:Product, isInitial: bool)=>any,
-    onEndBuild? :(p:Product)=>any
+    onStartBuild? :(isInitial: bool)=>any,
+    onEndBuild? :(error? :Error)=>any,  // error is present when ended with error
   ) :IncrementalBuildProcess
 }
 

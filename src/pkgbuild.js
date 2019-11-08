@@ -388,11 +388,11 @@ export class Product {
 
   postProcessJs(c, js, mapjson) {
     // at some point in history rollup and/or typescript changed behavior
-    // and is no longer writing sourceMappingURL to the output code. Thus,
-    // we strip any sourceMappingURL and add it back again.
-    js = js.trim().replace(
-      /[\r\n\s]*\/\/#\s*sourceMappingURL\s*=\s*[^\r\n]+[\r\n]*/m,
-      ''
+    // and is no longer writing sourceMappingURL to the output code.
+    // Thus, we add it back again.
+    js = js.replace(
+      /\n\/\/#\s*sourceMappingURL\s*=.+/g,
+      "\n"
     )
     if (c.optimize) {
       // sidecar file
@@ -410,16 +410,17 @@ export class Product {
   // }
   //
   buildIncrementally(c, onStartBuild, onEndBuild) { // :IncrBuildProcess
+    dlog(`[${this.name}] buildIncrementally`)
     this.preBuild(c)
     const p = this
 
     let onstart = (
-      onStartBuild ? isFirstRun => { onStartBuild(p, isFirstRun) } : ()=>{}
+      onStartBuild ? isFirstRun => { onStartBuild(isFirstRun) } : ()=>{}
     )
     if (c.verbose2) {
       onstart = isFirstRun => {
         if (onStartBuild) {
-          onStartBuild(p, isFirstRun)
+          onStartBuild(isFirstRun)
         }
         print(`build module ${repr(p.name)}`)
       }
@@ -448,6 +449,8 @@ export class Product {
     }
 
     buildProcess.promise = new Promise(async (resolve, reject) => {
+      dlog(`[${this.name}] buildProcess.promise init`)
+
       let startTime = Date.now()
       let isFirstRun = true
 
@@ -474,66 +477,105 @@ export class Product {
         return startWatcher()
       }
 
+      let _onEndBuildWorking = false
+      let _onEndBuildQueued = false
+
       let _onEndBuild = async () => {
-        // Note: Unfortunately there's no public API for controlling writing
-        // of files with rollup in watch mode, so we simply read the
-        // implicitly-written files from disk. This is very fast on a modern
-        // OS since the files' contents should be in memory already.
+        dlog(`[${this.name}] _onEndBuild`)
+        if (_onEndBuildWorking) {
+          dlog("[${this.name}] _onEndBuild: SET _onEndBuildQueued")
+          _onEndBuildQueued = true
+          return
+        }
+        _onEndBuildWorking = true
+        try {
+          // Note: Unfortunately there's no public API for controlling writing
+          // of files with rollup in watch mode, so we simply read the
+          // implicitly-written files from disk. This is very fast on a modern
+          // OS since the files' contents should be in memory already.
+          let js = readFileSync(p.outfile, 'utf8')
 
-        // TODO do more testing to make sure we no longer need this:
-        // let js, map
-        // if (c.debug) {
-        //   // inline sourcemap in debug mode
-        //   js = await readfile(this.outfile, 'utf8')
-        //   const lastLinePrefix = '//# sourceMappingURL='
-        //   let lastLine = js.substr(js.lastIndexOf(lastLinePrefix))
-        //   let i = lastLine.indexOf('\n')
-        //   if (i != -1) {
-        //     lastLine = lastLine.substr(0, i)  // trim away suffix
-        //   }
-        //   let mapstr = lastLine.substr(lastLinePrefix.length)
-        //   mapstr = mapstr.substr(mapstr.indexOf(';base64,') + 8)
-        //   map = Buffer.from(mapstr, 'base64').toString('utf8')
-        // } else {
-        let [js, map] = await Promise.all([
-          readfile(p.outfile, 'utf8'),
-          readfile(p.mapfile, 'utf8'),
-        ])
+          // HERE BE DRAGONS
+          // Okay so this is a mess, but hang in there...
+          // There's a race condition in rollup where it signals "END" and "BUNDLE_END"
+          // _before_ it has finished writing the source map to disk. This means that
+          // sometimes we read the source map file and get incomplete data, which in turn
+          // causes JSON.parse to fail. We work around this with some good old brute force
+          // by simply retrying a few times with an increasing delay, to allow the write
+          // to complete.
+          let sourcemap = {}
+          const maxAttempts = 20
+          let attempt = 0
+          let wait = 20
+          while (1) {
+            try {
+              sourcemap = JSON.parse(readFileSync(p.mapfile, 'utf8'))
+              if (attempt > 0) {
+                dlog(`[${this.name}] _onEndBuild: retry succeeded`)
+              }
+              break
+            } catch (err) {
+              attempt++
+              if (attempt >= maxAttempts) {
+                throw err
+              }
+              dlog(`[${this.name}] _onEndBuild: ${err} -- retrying in ${wait}ms...`)
+              await new Promise(r => setTimeout(r, wait))
+              wait = wait * 2
+              // re-read js file just in case
+              js = readFileSync(p.outfile, 'utf8')
+            }
+          }
 
-        // fixup source map (mutates output.map object)
-        let sourcemap = JSON.parse(map)
-        p.patchSourceMap(sourcemap)
+          // fixup source map (mutates output.map object)
+          p.patchSourceMap(sourcemap)
 
-        // optimize code
-        if (c.optimize) {
-          let r = p._optimize(c, js, sourcemap, wopt.output)
-          js = r.code
-          map = r.map
-          // re-write files
+          // optimize code
+          let map = ""
+          if (c.optimize) {
+            let r = p._optimize(c, js, sourcemap, wopt.output)
+            js = r.code
+            map = r.map
+            // // re-write files
+            // await Promise.all([
+            //   writefile(p.outfile, js, 'utf8'),
+            //   writefile(p.mapfile, map, 'utf8'),
+            // ])
+          } else {
+            map = JSON.stringify(sourcemap)
+          }
+
+          // post-process code
+          js = p.postProcessJs(c, js, map)
+
+          // update output
+          p.output = { js, map }
+
+          // write files
           await Promise.all([
             writefile(p.outfile, js, 'utf8'),
             writefile(p.mapfile, map, 'utf8'),
           ])
-        } else {
-          map = JSON.stringify(sourcemap)
-        }
 
-        // post-process code
-        js = p.postProcessJs(c, js, map)
+          p.reportBuildCompleted(c, startTime)
 
-        // update output
-        p.output = { js, map }
-
-        // write files
-        await Promise.all([
-          writefile(p.outfile, js, 'utf8'),
-          writefile(p.mapfile, map, 'utf8'),
-        ])
-
-        p.reportBuildCompleted(c, startTime)
-
-        if (onEndBuild) {
-          onEndBuild(p)
+          dlog(`[${this.name}] _onEndBuild: onEndBuild? ${onEndBuild ? "yes" : "no"}`)
+          if (onEndBuild) {
+            onEndBuild()
+          }
+        } catch (err) {
+          if (onEndBuild) {
+            onEndBuild(err)
+          }
+          throw err
+        } finally {
+          dlog(`[${this.name}] _onEndBuild: finished`)
+          if (_onEndBuildQueued) {
+            _onEndBuildQueued = false
+            process.nextTick(_onEndBuild)
+          } else {
+            _onEndBuildWorking = false
+          }
         }
       }
 
@@ -541,25 +583,37 @@ export class Product {
         await configure()
         watcher = rollup.watch(wopt)
         watcher.on('event', ev => {
+          dlog(`${p.name} rollup-event ${ev.code}`)
           switch (ev.code) {
 
-            case 'BUNDLE_START': { // building an individual bundle
+            case 'START': // the watcher is (re)starting
               startTime = Date.now()
               onstart(isFirstRun)
               if (isFirstRun) {
                 isFirstRun = false
               }
               break
+
+            case 'BUNDLE_START': { // building an individual bundle
+              break
             }
 
             case 'BUNDLE_END': { // finished building a bundle
               // let files = ev.output.map(fn => relpath(pkg.dir, fn)).join(', ')
-              _onEndBuild().catch(err => watcher.emit('error', err))
+              // _onEndBuild().catch(err => watcher.emit('error', err))
               break
             }
 
+            case 'END':   // finished building all bundles
+              _onEndBuild().catch(err => watcher.emit('error', err))
+              break
+
             case 'ERROR': { // encountered an error while bundling
+              // when we get this event, we will NOT get an END event.
               p.logBuildError(ev.error)
+              if (onEndBuild) {
+                onEndBuild(ev.error)
+              }
               break
             }
 
@@ -575,10 +629,6 @@ export class Product {
               }
               break
             }
-
-            case 'START': // the watcher is (re)starting
-            case 'END':   // finished building all bundles
-              break
 
             default: {
               console.error('unhandled rollup event:', ev.code, ev)

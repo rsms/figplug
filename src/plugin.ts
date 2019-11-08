@@ -379,7 +379,7 @@ export class PluginTarget {
   }
 
 
-  async buildIncr(c :BuildCtx, onStartBuild :()=>void, onEndBuild :()=>void) :Promise<void> {
+  async buildIncr(c :BuildCtx, onStartBuild :()=>void, onEndBuild :(e? :Error)=>void) :Promise<void> {
     // TODO: return cancelable promise, like we do for
     // Product.buildIncrementally.
 
@@ -462,9 +462,9 @@ export class PluginTarget {
           onStartBuild()
         }
       }
-      let onend = () => {
+      let onend = (err? :Error) => {
         if (--buildCounter == 0) {
-          onEndBuild()
+          onEndBuild(err)
         }
       }
 
@@ -475,15 +475,22 @@ export class PluginTarget {
         this.uiIncrBuildProcess = this.uiProduct.buildIncrementally(
           c,
           onstart,
-          () => buildHtml().then(onend),
+          err => err ? null
+                     : buildHtml().then(() => onend()).catch(onend)
         )
-        return Promise.all([ this.pluginIncrBuildProcess, this.uiIncrBuildProcess ]).then(() => {})
+        return Promise.all([
+          this.pluginIncrBuildProcess,
+          this.uiIncrBuildProcess,
+        ]).then(() => {})
       }
 
       if (this.htmlInFile) {
         // HTML-only UI
         onStartBuildHtml = onstart
-        return Promise.all([ this.pluginIncrBuildProcess, buildHtml().then(onend) ]).then(() => {})
+        return Promise.all([
+          this.pluginIncrBuildProcess,
+          buildHtml().then(() => onend()).catch(onend),
+        ]).then(() => {})
       }
     } else {
       // no UI
