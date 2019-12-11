@@ -169,38 +169,35 @@ export class PluginTarget {
   uiIncrBuildProcess     :IncrementalBuildProcess|null = null
 
 
-  constructor(
-    manifest :Manifest,
-    outdir :string,
-    pUserLibs :string[],
-    uiUserLibs :string[],
-    version :string,
-  ) {
+  constructor(manifest :Manifest, c :BuildCtx) {
     this.manifest = manifest
     this.basedir = dirname(manifest.file)
 
     let pluginSrcFile = presolve(this.basedir, manifest.props.main)
 
-    let customModuleId = manifest.props.figplug && manifest.props.figplug.moduleId
-
     this.srcdir = dirname(pluginSrcFile)
-    this.outdir = outdir = (outdir || pjoin(this.srcdir, "build"))
+    this.outdir = c.outdir || pjoin(this.srcdir, "build")
     this.cachedir = pjoin(this.outdir, ".figplug-cache")
     this.name = manifest.props.name
-    this.pluginOutFile = pjoin(outdir, (customModuleId || parsePath(pluginSrcFile).name) + '.js')
+
+    let customModuleId = manifest.props.figplug && manifest.props.figplug.moduleId
+    let moduleId = customModuleId || stripFileExt(manifest.props.main)
+
+    this.pluginOutFile = pjoin(
+      this.outdir,
+      (customModuleId || parsePath(pluginSrcFile).name) + '.js'
+    )
 
     // setup libs
     let figplugLib = getFigplugLib()
     let figmaPluginLib = getFigmaPluginLib(manifest.props.api)
 
     // setup user libs
-    this.initUserLibs(pUserLibs, uiUserLibs)
-
-    let moduleId = customModuleId || stripFileExt(manifest.props.main)
+    this.initUserLibs(c.libs, c.uilibs)
 
     // setup plugin product
     this.pluginProduct = new Product({
-      version,
+      version:  c.version,
       id:       moduleId,
       entry:    pluginSrcFile,
       outfile:  this.pluginOutFile,
@@ -208,6 +205,10 @@ export class PluginTarget {
       cachedir: this.cachedir,
       libs:     [ figplugLib, figmaPluginLib ],
       targetESVersion: 8, // Figma's JS VM supports ES2017
+      mapfile:  (
+        c.externalSourceMap ? (this.pluginOutFile + '.map') :
+        pjoin(this.cachedir, this.pluginOutFile.replace(/[^A-Za-z0-9_\-]+/g, ".") + '.map')
+      ),
     })
 
     // setup ui product
@@ -220,14 +221,14 @@ export class PluginTarget {
 
       this.htmlInFile = uisrcName + '.html'
       this.cssInFile  = uisrcName + '.css'
-      this.htmlOutFile = pjoin(outdir, uisrcFilePath.name + '.html')
+      this.htmlOutFile = pjoin(this.outdir, uisrcFilePath.name + '.html')
 
       if (!uisrcFile.endsWith(".html")) {
         this.uiProduct = new Product({
           version:  this.pluginProduct.version,
           id:       stripFileExt(manifest.props.ui),
           entry:    uisrcFile,
-          outfile:  pjoin(this.cachedir, '.ui.js'),
+          outfile:  pjoin(this.cachedir, 'ui.js'),
           basedir:  this.basedir,
           cachedir: this.cachedir,
           libs:     [ figplugLib, domTSLib ],

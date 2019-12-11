@@ -262,7 +262,7 @@ export class Product {
     this.id = props.id || props.entry
 
     this.jsx = props.jsx || null
-    this.mapfile = props.mapfile || this.outfile + '.map'
+    this.mapfile = props.mapfile || (this.outfile + '.map')
 
     this.assetBundler = new AssetBundler()
 
@@ -302,6 +302,21 @@ export class Product {
       p2[k] = this[k]
     }
     return p2
+  }
+
+
+  preBuild(c) {
+    for (let k in this.definesInline) {
+      // no work to be done -- defines are ...defined!
+      return
+    }
+    this.definesInline = {}
+    for (let lib of this.libs) {
+      Object.assign(this.definesInline, lib.getDefines(c.debug))
+    }
+    this.defines = Object.assign({
+      VERSION: this.version,
+    }, this.definesInline)
   }
 
 
@@ -371,21 +386,6 @@ export class Product {
   }
 
 
-  preBuild(c) {
-    for (let k in this.definesInline) {
-      // no work to be done
-      return
-    }
-    this.definesInline = {}
-    for (let lib of this.libs) {
-      Object.assign(this.definesInline, lib.getDefines(c.debug))
-    }
-    this.defines = Object.assign({
-      VERSION: this.version,
-    }, this.definesInline)
-  }
-
-
   postProcessJs(c, js, mapjson) {
     // at some point in history rollup and/or typescript changed behavior
     // and is no longer writing sourceMappingURL to the output code.
@@ -394,11 +394,12 @@ export class Product {
       /\n\/\/#\s*sourceMappingURL\s*=.+/g,
       "\n"
     )
-    if (c.optimize) {
-      // sidecar file
-      js += '\n//#sourceMappingURL=' + basename(this.mapfile) + "\n"
-    } else {
-      js += "\n" + inlineSourceMap(mapjson)
+    if (!c.noSourceMap) {
+      if (c.externalSourceMap) {
+        js += '\n//#sourceMappingURL=' + basename(this.mapfile) + "\n"
+      } else {
+        js += "\n" + inlineSourceMap(mapjson)
+      }
     }
     return js
   }
@@ -439,6 +440,7 @@ export class Product {
     const configure = async () => {
       let incfg = await p.makeInputConfig(c)
       let outcfg = await p.makeOutputConfig(c)
+      outcfg.sourcemap = "inline"  // workaround for rollup bug
       wopt = {
         ...incfg,
         output: outcfg,
@@ -483,7 +485,7 @@ export class Product {
       let _onEndBuild = async () => {
         dlog(`[${this.name}] _onEndBuild`)
         if (_onEndBuildWorking) {
-          dlog("[${this.name}] _onEndBuild: SET _onEndBuildQueued")
+          dlog(`[${this.name}] _onEndBuild: SET _onEndBuildQueued`)
           _onEndBuildQueued = true
           return
         }
@@ -495,40 +497,62 @@ export class Product {
           // OS since the files' contents should be in memory already.
           let js = readFileSync(p.outfile, 'utf8')
 
-          // HERE BE DRAGONS
-          // Okay so this is a mess, but hang in there...
-          // There's a race condition in rollup where it signals "END" and "BUNDLE_END"
-          // _before_ it has finished writing the source map to disk. This means that
-          // sometimes we read the source map file and get incomplete data, which in turn
-          // causes JSON.parse to fail. We work around this with some good old brute force
-          // by simply retrying a few times with an increasing delay, to allow the write
-          // to complete.
           let sourcemap = {}
-          const maxAttempts = 20
-          let attempt = 0
-          let wait = 20
-          while (1) {
-            try {
-              sourcemap = JSON.parse(readFileSync(p.mapfile, 'utf8'))
-              if (attempt > 0) {
-                dlog(`[${this.name}] _onEndBuild: retry succeeded`)
-              }
-              break
-            } catch (err) {
-              attempt++
-              if (attempt >= maxAttempts) {
-                throw err
-              }
-              dlog(`[${this.name}] _onEndBuild: ${err} -- retrying in ${wait}ms...`)
-              await new Promise(r => setTimeout(r, wait))
-              wait = wait * 2
-              // re-read js file just in case
-              js = readFileSync(p.outfile, 'utf8')
-            }
-          }
 
-          // fixup source map (mutates output.map object)
-          p.patchSourceMap(sourcemap)
+          if (!c.noSourceMap) {
+            // Note: We work around the below pain by forcing inline sourcemaps when building
+            // incrementally.
+            //
+            // TODO extract sourcemap from tail of js
+            const substr = "sourceMappingURL=data:application/json;charset=utf-8;base64,"
+            let i = js.lastIndexOf(substr)
+            if (i == -1) {
+              console.warning(`[${this.name}] _onEndBuild failed to find source map`)
+            } else {
+              i += substr.length
+              let e = js.indexOf("\n", i)
+              if (e == -1) {
+                e = js.length
+              }
+              sourcemap = JSON.parse(Buffer.from(js.substring(i, e), "base64").toString("utf8"))
+              // fixup source map (mutates output.map object)
+              p.patchSourceMap(sourcemap)
+            }
+
+            // // HERE BE DRAGONS
+            // // Okay so this is a mess, but hang in there...
+            // // There's a race condition in rollup where it signals "END" and "BUNDLE_END"
+            // // _before_ it has finished writing the source map to disk. This means that
+            // // sometimes we read the source map file and get incomplete data, which in turn
+            // // causes JSON.parse to fail. We work around this with some good old brute force
+            // // by simply retrying a few times with an increasing delay, to allow the write
+            // // to complete.
+            // const maxAttempts = 20
+            // let attempt = 0
+            // let wait = 20
+            // while (1) {
+            //   try {
+            //     sourcemap = JSON.parse(readFileSync(p.mapfile, 'utf8'))
+            //     if (attempt > 0) {
+            //       dlog(`[${this.name}] _onEndBuild: retry succeeded`)
+            //     }
+            //     break
+            //   } catch (err) {
+            //     attempt++
+            //     if (attempt >= maxAttempts) {
+            //       throw err
+            //     }
+            //     dlog(`[${this.name}] _onEndBuild: ${err} -- retrying in ${wait}ms...`)
+            //     await new Promise(r => setTimeout(r, wait))
+            //     wait = wait * 2
+            //     // re-read js file just in case
+            //     js = readFileSync(p.outfile, 'utf8')
+            //   }
+            // }
+            //
+            // // fixup source map (mutates output.map object)
+            // p.patchSourceMap(sourcemap)
+          }
 
           // optimize code
           let map = ""
@@ -541,7 +565,7 @@ export class Product {
             //   writefile(p.outfile, js, 'utf8'),
             //   writefile(p.mapfile, map, 'utf8'),
             // ])
-          } else {
+          } else if (!c.noSourceMap) {
             map = JSON.stringify(sourcemap)
           }
 
@@ -552,10 +576,15 @@ export class Product {
           p.output = { js, map }
 
           // write files
-          await Promise.all([
-            writefile(p.outfile, js, 'utf8'),
-            writefile(p.mapfile, map, 'utf8'),
-          ])
+          let writeJsP = writefile(p.outfile, js, 'utf8')
+          if (c.noSourceMap) {
+            await writeJsP
+          } else {
+            await Promise.all([
+              writeJsP,
+              writefile(p.mapfile, map, 'utf8'),
+            ])
+          }
 
           p.reportBuildCompleted(c, startTime)
 
@@ -911,7 +940,9 @@ export class Product {
       file: this.outfile,
       format: 'cjs', // umd
       name: this.name,
-      sourcemap: true,
+      // sourcemap: c.noSourceMap ? false : c.externalSourceMap ? true : "inline",
+      sourcemap: !c.noSourceMap,
+      sourcemapFile: this.mapfile,
       freeze: c.debug, // Object.freeze(x) on import * as x from ...
       banner: this.banner + wrapperStart,
       footer: wrapperEnd,

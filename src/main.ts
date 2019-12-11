@@ -14,7 +14,7 @@ async function buildPlugin(manifest :Manifest, c :BuildCtx) {
   if (DEBUG) {
     Object.freeze(c)
   }
-  let p = new PluginTarget(manifest, c.outdir, c.libs, c.uilibs, c.version)
+  let p = new PluginTarget(manifest, c)
   return p.build(c)
 }
 
@@ -225,17 +225,19 @@ async function main_build(argv :string[], baseopt: {[k:string]:any}={}) {
     "        <path>:<outdir>. Example: src:build.\n" +
     "        This is useful when building multiple plugins at the same time.\n"
     ,
-    ["w",             "Watch sources for changes and rebuild incrementally"],
-    ["g",             "Generate debug code (assertions and DEBUG branches)."],
-    ["O",             "Generate optimized code."],
-    ["lib",           "Include a global JS library in plugin code. " +
-                      "Can be set multiple times.", "<file>:string[]"],
-    ["uilib",         "Include a global JS library in UI code. " +
-                      "Can be set multiple times.", "<file>:string[]"],
-    ["clean",         "Force rebuilding of everything, ignoring cache. Implied with -O."],
-    ["nomin",         "Do not minify or mangle optimized code when -O is enabled."],
-    ["no-manifest",   "Do not generate manifest.json"],
-    [["o", "output"], "Write output to directory. Defaults to ./build", "<dir>"],
+    ["w",              "Watch sources for changes and rebuild incrementally"],
+    ["g",              "Generate debug code (assertions and DEBUG branches)."],
+    ["O",              "Generate optimized code."],
+    ["lib",            "Include a global JS library in plugin code. " +
+                       "Can be set multiple times.", "<file>:string[]"],
+    ["uilib",          "Include a global JS library in UI code. " +
+                       "Can be set multiple times.", "<file>:string[]"],
+    ["clean",          "Force rebuilding of everything, ignoring cache. Implied with -O."],
+    ["nomin",          "Do not minify or mangle optimized code when -O is enabled."],
+    ["no-manifest",    "Do not generate manifest.json"],
+    ["no-source-map",  "Do not generate a source map."],
+    ["ext-source-map", "Place source map in separate file instead of inlining."],
+    [["o", "output"],  "Write output to directory. Defaults to ./build", "<dir>"],
     ...baseCliOptions
   )
 
@@ -253,7 +255,9 @@ async function main_build(argv :string[], baseopt: {[k:string]:any}={}) {
   c.outdir   = opt.o || opt.outdir || c.outdir
   c.libs     = opt.lib || []
   c.uilibs   = opt.uilib || []
-  c.noGenManifest = opt["no-manifest"] || false
+  c.noGenManifest = !!opt["no-manifest"]
+  c.noSourceMap = !!opt["no-source-map"]
+  c.externalSourceMap = !!opt["ext-source-map"]
 
   // set manifest locations based on CLI arguments
   let manifestPaths = unique(
