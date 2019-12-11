@@ -166,22 +166,24 @@ let figmaPluginApiVersions = (() => {
 })();
 
 
-// write figma api global definition file used by figplug itself
-const figmaApiDefsFile = pjoin(__dirname, 'lib', `figma-plugin-${figmaPluginApiVersions[0]}.d.ts`)
-;(() => {
-  fs.mkdirSync(builddir, {recursive:true})
-  let figmaApiDefs = fs.readFileSync(figmaApiDefsFile, 'utf8')
-  let startIndex = figmaApiDefs.indexOf("interface")
-  figmaApiDefs = (
-    figmaApiDefs.substr(0, startIndex)
-      .replace(/figma:\s*PluginAPI/g, "figma: Figma.PluginAPI") +
-    'declare namespace Figma {\n' +
-    figmaApiDefs.substr(startIndex) +
-    '\n} // namespace Figma\n'
-  )
-  const figmaGlobalApiDFile = pjoin(builddir, 'figma-plugin-ns.d.ts')
-  fs.writeFileSync(figmaGlobalApiDFile, figmaApiDefs, 'utf8')
-})
+// Note: No longer used as this was just a lot of pain to maintain.
+// Types in the code are now simply manually matched to the Figma types.
+// // write figma api global definition file used by figplug itself
+// const figmaApiDefsFile = pjoin(__dirname, 'lib', `figma-plugin-${figmaPluginApiVersions[0]}.d.ts`)
+// ;(() => {
+//   fs.mkdirSync(builddir, {recursive:true})
+//   let figmaApiDefs = fs.readFileSync(figmaApiDefsFile, 'utf8')
+//   let startIndex = figmaApiDefs.indexOf("interface")
+//   figmaApiDefs = (
+//     figmaApiDefs.substr(0, startIndex)
+//       .replace(/figma:\s*PluginAPI/g, "figma: Figma.PluginAPI") +
+//     'declare namespace Figma {\n' +
+//     figmaApiDefs.substr(startIndex) +
+//     '\n} // namespace Figma\n'
+//   )
+//   const figmaGlobalApiDFile = pjoin(builddir, 'figma-plugin-ns.d.ts')
+//   fs.writeFileSync(figmaGlobalApiDFile, figmaApiDefs, 'utf8')
+// })()
 
 
 // start a network check for new version
