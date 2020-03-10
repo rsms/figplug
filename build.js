@@ -165,11 +165,12 @@ let figmaPluginApiVersions = (() => {
   return v
 })();
 
+const figmaApiDefsFile = pjoin(__dirname, 'lib', `figma-plugin-${figmaPluginApiVersions[0]}.d.ts`)
+
 
 // Note: No longer used as this was just a lot of pain to maintain.
 // Types in the code are now simply manually matched to the Figma types.
 // // write figma api global definition file used by figplug itself
-// const figmaApiDefsFile = pjoin(__dirname, 'lib', `figma-plugin-${figmaPluginApiVersions[0]}.d.ts`)
 // ;(() => {
 //   fs.mkdirSync(builddir, {recursive:true})
 //   let figmaApiDefs = fs.readFileSync(figmaApiDefsFile, 'utf8')
