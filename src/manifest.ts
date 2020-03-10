@@ -19,6 +19,8 @@ export interface ManifestProps {
   menu?    :MenuEntry[]
   build?   :string
   figplug? :ManifestFigPlugProps
+
+  [k:string] :any // unknown future properties
 }
 
 export type MenuEntry = MenuItem | MenuSeparator | Menu
@@ -36,34 +38,6 @@ export interface Menu {
 
 // type union of possible values of figma manifest
 type ManifestValue = string | MenuEntry[]
-
-/*
-const standardProps = new Set([
-  "version",
-  "name",
-  "script",
-  "html",
-  "menu",
-  "build",
-])
-
-// props required by Figma.ManifestJson
-const requiredProps = [
-  "name",
-  "version",
-  "script",
-]*/
-
-// props of Figma.ManifestJson
-const standardProps = new Set([
-  "name",
-  "api",
-  "main",
-  "id",
-  "ui",
-  "menu",
-  "build",
-])
 
 // props required by Figma.ManifestJson
 const requiredProps = [
@@ -89,9 +63,9 @@ export class Manifest {
   //
   propMap() :Map<string,ManifestValue> {
     let m = new Map<string,ManifestValue>()
-    for (let name of standardProps) {
-      if (this.props.hasOwnProperty(name)) {
-        m.set(name, (this.props as any)[name])
+    for (let name of Object.keys(this.props)) {
+      if (name.toLowerCase() != "figplug") {
+        m.set(name, this.props[name])
       }
     }
     return m
