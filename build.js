@@ -7,6 +7,7 @@
 //  -O         Generate optimized product
 //  -nominify  Do not minify (or mangle) optimized product code (i/c/w -O)
 //  -nobundle  Do not include any dependencies. Faster build but slower startup.
+//  -check-dts Check for updates to the figma.d.ts file
 //  -h, -help  Print this help message to stderr and exit
 //
 
@@ -97,6 +98,9 @@ const watch = process.argv.includes('-w')
 const minify = !process.argv.includes('-nominify')
 const clean = process.argv.includes('-clean')
 const bundleWorld = !process.argv.includes('-nobundle')
+
+// figma.d.ts
+const checkDTS = process.argv.includes('-check-dts')
 const showDiff = process.argv.includes('-show-diff')
 const updateTypeDefs = process.argv.includes('-update-type-defs')
 const outfilename = debug ? `${productName}.g` : `${productName}`
@@ -188,7 +192,12 @@ const figmaApiDefsFile = pjoin(__dirname, 'lib', `figma-plugin-${figmaPluginApiV
 
 
 // start a network check for new version
-checkForUpdatedFigmaTypeDefs()
+if (checkDTS) {
+  console.log("checking for new version of figma.d.ts...")
+  return checkForUpdatedFigmaTypeDefs(/*verbose*/ checkDTS).then(() => { process.exit(0) })
+} else {
+  checkForUpdatedFigmaTypeDefs()
+}
 
 
 // constant definitions that may be inlined
@@ -865,7 +874,7 @@ function getGitHashSync() {
 }
 
 
-async function checkForUpdatedFigmaTypeDefs() {
+async function checkForUpdatedFigmaTypeDefs(verbose) {
   // https://www.figma.com/plugin-docs/figma.d.ts
   let url = "https://www.figma.com/plugin-docs/figma.d.ts"
   let res = await httpGET(url)
@@ -894,8 +903,8 @@ async function checkForUpdatedFigmaTypeDefs() {
       console.log(`writing ${figmaApiDefsFilename}`)
       await writefile(figmaApiDefsFile, latestDefsData)
     }
-  } else if (updateTypeDefs) {
-    console.log(`${figmaApiDefsFilename} is already up-to-date`)
+  } else if (verbose || updateTypeDefs) {
+    console.log(`${figmaApiDefsFilename} is up-to-date`)
   }
 }
 
