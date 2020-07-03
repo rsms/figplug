@@ -22,6 +22,7 @@ const rollup = require('rollup')
 const typescriptPlugin = require('rollup-plugin-typescript2')
 const fs = require('fs')
 const Path = require('path')
+const { URL } = require('url');
 const subprocess = require('child_process')
 const { join: pjoin, relative: relpath, dirname } = Path
 const promisify = require('util').promisify
@@ -875,8 +876,8 @@ function getGitHashSync() {
 
 
 async function checkForUpdatedFigmaTypeDefs(verbose) {
-  // https://www.figma.com/plugin-docs/figma.d.ts
-  let url = "https://www.figma.com/plugin-docs/figma.d.ts"
+  // let url = "https://www.figma.com/plugin-docs/figma.d.ts"
+  let url = "https://unpkg.com/@figma/plugin-typings/index.d.ts"
   let res = await httpGET(url)
   let latestDefsData = res.body
   let figmaApiDefsFilename = relpath(".", figmaApiDefsFile)
@@ -963,32 +964,33 @@ function diffu(in1, in2, label1, label2) {
 
 function httpGET(url, options) { // Promise<string>
   return new Promise((resolve, reject) => {
-    let httpmod = url.startsWith("https:") ? https : http
-    let req = httpmod.get(url, options||{}, res => {
-      let clen = parseInt(res.headers["content-length"])
-      let blen = 0
-      let buf = Buffer.allocUnsafe(isNaN(clen) || clen < 0 ? 512 : clen)
-      res.on('data', chunk => {
-        let nz = blen + chunk.length
-        if (nz > buf.length) {
-          let buf2 = Buffer.allocUnsafe(buf.length * 2)
-          buf2.set(buf, 0)
-          buf = buf2
-        }
-        buf.set(chunk, blen)
-        blen += chunk.length
+    let redirectCount = 0
+    function request(url) {
+      // console.log("GET", url.toString())
+      let httpmod = url.protocol == "https:" ? https : http
+      let req = httpmod.get(url.toString(), options||{}, res => {
+        let bufs = []
+        let bufz = 0
+        res.on('data', chunk => {
+          bufz += chunk.length
+          bufs.push(chunk)
+        })
+        res.on('end', () => {
+          res.body = Buffer.concat(bufs, bufz)
+          if (res.statusCode == 302 && redirectCount < 10 && res.headers["location"]) {
+            redirectCount++
+            request(new URL(res.headers["location"], url))
+          } else if (res.statusCode < 200 || res.statusCode >= 300) {
+            let body; try { body = buf.toString("utf8") } catch (_) { body = "" }
+            let bodystr = JSON.stringify(body.length > 50 ? body.substr(0,50)+"..." : body)
+            reject(new Error(`HTTP ${res.statusCode} (body: ${bodystr})`))
+          } else {
+            resolve(res)
+          }
+        })
       })
-      res.on('end', () => {
-        res.body = buf
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          let body; try { body = buf.toString("utf8") } catch (_) { body = "" }
-          let bodystr = JSON.stringify(body.length > 50 ? body.substr(0,50)+"..." : body)
-          reject(new Error(`HTTP ${res.statusCode} (body: ${bodystr})`))
-        } else {
-          resolve(res)
-        }
-      })
-    })
-    req.on('error', reject)
+      req.on('error', reject)
+    }
+    request(new URL(url))
   })
 }
