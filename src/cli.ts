@@ -13,7 +13,7 @@ export function die(message :any, ...msg :any[]) {
   }
   console.error(
     `${prog}: ${message}` +
-    (msg.length > 0 ? msg.join(' ') : "")
+    (msg && msg.length > 0 ? msg.join(' ') : "")
   )
   process.exit(1)
 }
@@ -235,7 +235,7 @@ function printUsage(opts :Opt[], usage? :Usage) {
   }
   let s = (
     usage ? typeof usage == 'function' ? usage() : usage :
-    opts.length > 0 ? `Usage: $prog [options]` : `Usage: $prog`
+    opts && opts.length > 0 ? `Usage: $prog [options]` : `Usage: $prog`
   )
   s = s.replace(/\$(\w+)/g, (m, v) => {
     let sub = vars[v]

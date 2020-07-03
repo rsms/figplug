@@ -380,6 +380,9 @@ export class Product {
 
     } catch(err) {
       this.logBuildError(err)
+      if (c.verbose2 && err.stack) {
+        console.error("[debug]", err.stack)
+      }
       err._wasReported = true
       throw err
     }
