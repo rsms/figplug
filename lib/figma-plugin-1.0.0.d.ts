@@ -64,6 +64,16 @@ declare global {
     getLocalEffectStyles(): EffectStyle[]
     getLocalGridStyles(): GridStyle[]
 
+    moveLocalPaintStyleAfter(targetNode: PaintStyle, reference: PaintStyle | null): void
+    moveLocalTextStyleAfter(targetNode: TextStyle, reference: TextStyle | null): void
+    moveLocalEffectStyleAfter(targetNode: EffectStyle, reference: EffectStyle | null): void
+    moveLocalGridStyleAfter(targetNode: GridStyle, reference: GridStyle | null): void
+
+    moveLocalPaintFolderAfter(targetFolder: string, reference: string | null): void
+    moveLocalTextFolderAfter(targetFolder: string, reference: string | null): void
+    moveLocalEffectFolderAfter(targetFolder: string, reference: string | null): void
+    moveLocalGridFolderAfter(targetFolder: string, reference: string | null): void
+
     importComponentByKeyAsync(key: string): Promise<ComponentNode>
     importComponentSetByKeyAsync(key: string): Promise<ComponentSetNode>
     importStyleByKeyAsync(key: string): Promise<BaseStyle>
@@ -404,7 +414,7 @@ declare global {
     }
 
   interface SimpleTransition {
-    readonly type: "DISSOLVE" | "SMART_ANIMATE"
+    readonly type: "DISSOLVE" | "SMART_ANIMATE" | "SCROLL_ANIMATE"
     readonly easing: Easing
     readonly duration: number
   }
@@ -427,7 +437,7 @@ declare global {
       readonly delay: number
     }
 
-  type Navigation = "NAVIGATE" | "SWAP" | "OVERLAY"
+  type Navigation = "NAVIGATE" | "SWAP" | "OVERLAY" | "SCROLL_TO" | "CHANGE_TO"
 
   interface Easing {
     readonly type: "EASE_IN" | "EASE_OUT" | "EASE_IN_AND_OUT" | "LINEAR"
@@ -586,8 +596,13 @@ declare global {
     readonly reactions: ReadonlyArray<Reaction>
   }
 
+  interface DocumentationLink {
+    readonly uri: string
+  }
+
   interface PublishableMixin {
     description: string
+    documentationLinks: ReadonlyArray<DocumentationLink>
     readonly remote: boolean
     readonly key: string // The key to use with "importComponentByKeyAsync", "importComponentSetByKeyAsync", and "importStyleByKeyAsync"
     getPublishStatusAsync(): Promise<PublishStatus>
@@ -791,6 +806,8 @@ declare global {
     readonly type: "INSTANCE"
     clone(): InstanceNode
     mainComponent: ComponentNode | null
+    swapComponent(componentNode: ComponentNode): void
+    detachInstance(): FrameNode
     scaleFactor: number
   }
 
