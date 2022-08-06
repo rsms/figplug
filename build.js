@@ -1,4 +1,4 @@
-#!/usr/bin/env TSC_NONPOLLING_WATCHER=1 node --max-old-space-size=8192
+#!/usr/bin/env node --max-old-space-size=8192
 
 // Usage: build.js [-w [-clean]]
 //        build.js -O [-nominify]
@@ -304,7 +304,7 @@ const rin = {
 let versionBanner = `/* ${pkg.name} ${VERSION_WITH_TAG} */\n`
 let execBanner = ""
 if (productIsExectuable) {
-  execBanner = '#!/usr/bin/env TSC_NONPOLLING_WATCHER=1 node\n'
+  execBanner = '#!/usr/bin/env node\n'
 }
 const wrapperStart = '(function(global){\n'
 const wrapperEnd = '\n})(typeof exports != "undefined" ? exports : this);\n'
